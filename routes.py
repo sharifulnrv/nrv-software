@@ -8,6 +8,10 @@ import pandas as pd
 import io
 from datetime import datetime
 from flask import send_file
+import random
+import string
+import json
+from telegram_utils import send_telegram_message
 
 main = Blueprint('main', __name__)
 
@@ -46,6 +50,50 @@ def verify_password():
     if password == admin_pass:
         return True
     return False
+
+# --- OTP Store (In-Memory for simplicity) ---
+otp_store = {}
+
+@main.route('/change_password_request', methods=['GET', 'POST'])
+def change_password_request():
+    if request.method == 'POST':
+        # Generate OTP
+        otp = ''.join(random.choices(string.digits, k=6))
+        
+        if send_telegram_message(f"Your OTP for Password Change is: {otp}"):
+            otp_store['current_otp'] = otp
+            flash('OTP sent to Telegram!', 'info')
+            return redirect(url_for('main.verify_otp_page'))
+        else:
+            flash('Failed to send OTP. Check internet or bot config.', 'danger')
+            
+    return render_template('change_password_request.html')
+
+@main.route('/verify_otp', methods=['GET', 'POST'])
+def verify_otp_page():
+    if request.method == 'POST':
+        user_otp = request.form.get('otp')
+        new_password = request.form.get('new_password')
+        
+        if 'current_otp' in otp_store and otp_store['current_otp'] == user_otp:
+            # Update Password
+            config_path = os.path.join(current_app.root_path, 'admin_config.json')
+            with open(config_path, 'w') as f:
+                json.dump({"ADMIN_PASSWORD": new_password}, f)
+            
+            # Update Runtime Config
+            current_app.config['ADMIN_PASSWORD'] = new_password
+            
+            # Clear OTP
+            del otp_store['current_otp']
+            
+            flash('Password Changed Successfully!', 'success')
+            return redirect(url_for('main.index'))
+        else:
+            flash('Invalid OTP!', 'danger')
+            
+    return render_template('verify_otp.html')
+
 
 # --- Director Routes ---
 @main.route('/director/add', methods=['GET', 'POST'])

@@ -17,6 +17,9 @@
             <input type="text" class="form-control" id="searchBar" placeholder="Search customers...">
             <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
         </div>
+        <a href="{{ url_for('main.change_password_request') }}" class="btn btn-light rounded-circle border shadow-sm" title="Change Password">
+            <i class="fas fa-key text-warning"></i>
+        </a>
         <a href="{{ url_for('main.settings') }}" class="btn btn-light rounded-circle border shadow-sm" title="Settings">
             <i class="fas fa-cog text-secondary"></i>
         </a>

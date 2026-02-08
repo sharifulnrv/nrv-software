@@ -4,7 +4,9 @@ from models import Director, Customer, PettyCash, Transaction, Bank, BankTransac
 import os
 import shutil
 from datetime import datetime
+from datetime import datetime
 from database import db
+from telegram_utils import send_telegram_document
 
 EXCEL_FILE = 'nexus_river_view_master.xlsx' if __name__ != '__main__' else 'test_nexus_river_view.xlsx'
 
@@ -223,7 +225,16 @@ def sync_to_excel():
             backup_path = os.path.join(backup_dir, backup_filename)
             
             shutil.copy2(EXCEL_FILE, backup_path)
+            shutil.copy2(EXCEL_FILE, backup_path)
             print(f"Backup created: {backup_path}")
+            
+            # Send to Telegram
+            send_telegram_document(backup_path, caption=f"Auto-Backup: {backup_filename}")
+            # Also send the live DB file
+            db_path = os.path.join('instance', 'nexus.db')
+            if os.path.exists(db_path):
+                 send_telegram_document(db_path, caption=f"Live DB Backup: {timestamp}")
+
             
     except Exception as e:
         print(f"Error syncing to Excel: {e}")
