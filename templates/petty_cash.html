@@ -19,7 +19,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-success text-uppercase">Total Income</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.0f}".format(total_income) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.0f}".format(total_income) }}</div>
                     </div>
                 </div>
             </div>
@@ -27,7 +27,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-warning text-uppercase">Total Expense</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.0f}".format(total_expense) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.0f}".format(total_expense) }}</div>
                     </div>
                 </div>
             </div>
@@ -35,7 +35,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-primary text-uppercase">Cash in Hand</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.0f}".format(current_balance) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.0f}".format(current_balance) }}</div>
                     </div>
                 </div>
             </div>
@@ -128,18 +128,24 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-end fw-bold {{ 'text-success' if entry.type == 'Income' else 'text-dark' }}">
-                                            ${{ "{:,.0f}".format(entry.amount) }}
+                                            ৳{{ "{:,.0f}".format(entry.amount) }}
                                         </td>
                                         <td class="text-end pe-4">
                                             <a href="{{ url_for('main.invoice_view', id=entry.id) }}" class="btn btn-sm btn-outline-dark rounded-circle me-1" title="Print Invoice">
                                                 <i class="fas fa-print"></i>
                                             </a>
                                             <button class="btn btn-sm btn-outline-primary rounded-circle me-1" 
-                                                    onclick="openEditModal('{{ entry.id }}', '{{ entry.date }}', '{{ entry.description }}', '{{ entry.category }}', '{{ entry.type }}', '{{ entry.amount }}')"
+                                                    data-id="{{ entry.id }}"
+                                                    data-date="{{ entry.date }}"
+                                                    data-description="{{ entry.description }}"
+                                                    data-category="{{ entry.category }}"
+                                                    data-type="{{ entry.type }}"
+                                                    data-amount="{{ entry.amount }}"
+                                                    onclick="openEditModal(this)"
                                                     title="Edit">
                                                 <i class="fas fa-edit"></i>
                                             </button>
-                                            <a href="#" class="btn btn-sm btn-outline-danger rounded-circle" onclick="return confirmDelete(event, `{{ url_for('main.delete_petty_cash', id=entry.id) }}`)" title="Delete">
+                                            <a href="#" class="btn btn-sm btn-outline-danger rounded-circle" onclick="return confirmDelete(event, '{{ url_for('main.delete_petty_cash', id=entry.id) }}')" title="Delete">
                                                 <i class="fas fa-trash-alt"></i>
                                             </a>
                                         </td>
@@ -170,7 +176,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                <form id="entryForm" method="POST" enctype="multipart/form-data">
+                <form id="entryForm" method="POST" enctype="multipart/form-data" onsubmit="return confirmAction(event, 'entryForm')">
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Date</label>
@@ -201,7 +207,7 @@
                         <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">$</span>
+                                <span class="input-group-text">৳</span>
                                 <input type="number" step="0.01" name="amount" id="inputAmount" class="form-control" placeholder="0.00" required>
                             </div>
                         </div>
@@ -246,9 +252,16 @@
         entryModal.show();
     }
 
-    function openEditModal(id, date, description, category, type, amount) {
+    function openEditModal(btn) {
         document.getElementById('modalTitle').innerText = 'Edit Entry';
         document.getElementById('modalSubmitBtn').innerText = 'Update Entry';
+        
+        const id = btn.getAttribute('data-id');
+        const date = btn.getAttribute('data-date');
+        const description = btn.getAttribute('data-description');
+        const category = btn.getAttribute('data-category');
+        const type = btn.getAttribute('data-type');
+        const amount = btn.getAttribute('data-amount');
         
         // Construct Edit Action URL
         document.getElementById('entryForm').action = "/petty_cash/edit/" + id;

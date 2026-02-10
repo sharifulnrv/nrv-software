@@ -11,7 +11,22 @@ from flask import send_file
 import random
 import string
 import json
-from telegram_utils import send_telegram_message
+from telegram_utils import send_telegram_message, send_telegram_document
+
+def backup_to_telegram(action_name="Database Update"):
+    """
+    Helper to send the current database to Telegram.
+    This should be called AFTER a successful commit.
+    """
+    try:
+        db_path = current_app.config.get('DATABASE_PATH')
+        if db_path and os.path.exists(db_path):
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            caption = f"Backup triggered by: {action_name}\nTime: {timestamp}"
+            send_telegram_document(db_path, caption=caption)
+    except Exception as e:
+        print(f"Backup failed: {e}")
+        # We don't want to break the user flow if backup fails, just log it.
 
 main = Blueprint('main', __name__)
 
@@ -77,9 +92,16 @@ def verify_otp_page():
         
         if 'current_otp' in otp_store and otp_store['current_otp'] == user_otp:
             # Update Password
-            config_path = os.path.join(current_app.root_path, 'admin_config.json')
-            with open(config_path, 'w') as f:
-                json.dump({"ADMIN_PASSWORD": new_password}, f)
+            # Use DATA_FOLDER to ensure persistence
+            data_folder = current_app.config.get('DATA_FOLDER', current_app.root_path)
+            config_path = os.path.join(data_folder, 'admin_config.json')
+            
+            try:
+                with open(config_path, 'w') as f:
+                    json.dump({"ADMIN_PASSWORD": new_password}, f)
+            except Exception as e:
+                flash(f'Error saving password: {e}', 'danger')
+                return redirect(url_for('main.index'))
             
             # Update Runtime Config
             current_app.config['ADMIN_PASSWORD'] = new_password
@@ -121,6 +143,7 @@ def add_director():
             db.session.add(new_director)
             db.session.commit()
             sync_to_excel()
+            backup_to_telegram("Added Director: " + name)
             flash('Director added successfully!', 'success')
             return redirect(url_for('main.index'))
     return render_template('director_form.html')
@@ -145,6 +168,7 @@ def edit_director(id):
         
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Edited Director: " + director.name)
         flash('Director updated successfully!', 'success')
         return redirect(url_for('main.index'))
     return render_template('director_form.html', director=director)
@@ -166,6 +190,7 @@ def delete_director(id):
     db.session.delete(director)
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Deleted Director: " + director.name)
     flash('Director and their customers removed!', 'info')
     return redirect(url_for('main.index'))
 
@@ -184,6 +209,14 @@ def add_customer():
         customer_id = request.form.get('customer_id')
         name = request.form.get('name')
         phone = request.form.get('phone')
+        father_name = request.form.get('father_name')
+        mother_name = request.form.get('mother_name')
+        dob = request.form.get('dob')
+        religion = request.form.get('religion')
+        profession = request.form.get('profession')
+        nid_no = request.form.get('nid_no')
+        present_address = request.form.get('present_address')
+        permanent_address = request.form.get('permanent_address')
         plot_no = request.form.get('plot_no')
         total_price = float(request.form.get('total_price') or 0)
         down_payment = float(request.form.get('down_payment') or 0)
@@ -198,6 +231,14 @@ def add_customer():
             customer_id=customer_id,
             name=name,
             phone=phone,
+            father_name=father_name,
+            mother_name=mother_name,
+            dob=dob,
+            religion=religion,
+            profession=profession,
+            nid_no=nid_no,
+            present_address=present_address,
+            permanent_address=permanent_address,
             plot_no=plot_no,
             total_price=total_price,
             down_payment=down_payment,
@@ -208,6 +249,7 @@ def add_customer():
         db.session.add(new_customer)
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Added Customer: " + name)
         flash('Customer added successfully!', 'success')
         return redirect(url_for('main.index'))
         
@@ -227,6 +269,14 @@ def edit_customer(id):
         customer.customer_id = request.form.get('customer_id')
         customer.name = request.form.get('name')
         customer.phone = request.form.get('phone')
+        customer.father_name = request.form.get('father_name')
+        customer.mother_name = request.form.get('mother_name')
+        customer.dob = request.form.get('dob')
+        customer.religion = request.form.get('religion')
+        customer.profession = request.form.get('profession')
+        customer.nid_no = request.form.get('nid_no')
+        customer.present_address = request.form.get('present_address')
+        customer.permanent_address = request.form.get('permanent_address')
         customer.plot_no = request.form.get('plot_no')
         customer.total_price = float(request.form.get('total_price') or 0)
         customer.down_payment = float(request.form.get('down_payment') or 0)
@@ -238,6 +288,7 @@ def edit_customer(id):
         
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Edited Customer: " + customer.name)
         flash('Customer updated successfully!', 'success')
         return redirect(url_for('main.index'))
         
@@ -254,6 +305,7 @@ def delete_customer(id):
     db.session.commit()
     # Sync to Excel
     sync_to_excel()
+    backup_to_telegram("Deleted Customer")
     flash('Customer deleted!', 'success')
     return redirect(url_for('main.index'))
 
@@ -263,6 +315,10 @@ def manage_transactions(customer_id):
     customer = Customer.query.get_or_404(customer_id)
     
     if request.method == 'POST':
+        if not verify_password():
+            flash('Invalid Admin Password!', 'danger')
+            return redirect(url_for('main.manage_transactions', customer_id=customer_id))
+
         date = request.form.get('date')
         amount = float(request.form.get('amount') or 0)
         installment_type = request.form.get('installment_type')
@@ -298,6 +354,7 @@ def manage_transactions(customer_id):
         db.session.add(new_tx)
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Added Transaction for Customer: " + customer.name)
         flash('Transaction Added!', 'success')
         return redirect(url_for('main.manage_transactions', customer_id=customer_id))
         
@@ -306,6 +363,15 @@ def manage_transactions(customer_id):
 
 @main.route('/delete_transaction/<int:id>')
 def delete_transaction(id):
+    if not verify_password():
+        flash('Invalid Admin Password!', 'danger')
+        # We need customer_id to redirect, but we don't have it easily without querying tx first
+        # But we can query tx first
+        tx = Transaction.query.get(id)
+        if tx:
+             return redirect(url_for('main.manage_transactions', customer_id=tx.customer_id))
+        return redirect(url_for('main.index'))
+
     tx = Transaction.query.get_or_404(id)
     customer_id = tx.customer_id
     customer = Customer.query.get(customer_id)
@@ -317,6 +383,7 @@ def delete_transaction(id):
     db.session.delete(tx)
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Deleted Transaction")
     flash('Transaction Deleted!', 'warning')
     return redirect(url_for('main.manage_transactions', customer_id=customer_id))
 
@@ -366,6 +433,7 @@ def edit_transaction_details(id):
     
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Edited Transaction")
     flash('Transaction Updated!', 'success')
     return redirect(url_for('main.manage_transactions', customer_id=customer.id))
 
@@ -407,6 +475,7 @@ def manage_petty_cash():
         db.session.add(new_entry)
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Added Petty Cash: " + description)
         flash('Petty Cash Entry Added!', 'success')
         return redirect(url_for('main.manage_petty_cash'))
         
@@ -508,6 +577,7 @@ def delete_petty_cash(id):
     db.session.delete(entry)
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Deleted Petty Cash")
     flash('Entry Deleted!', 'info')
     return redirect(url_for('main.manage_petty_cash'))
 
@@ -548,6 +618,7 @@ def edit_petty_cash(id):
             
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Edited Petty Cash")
     flash('Entry Updated Successfully!', 'success')
     return redirect(url_for('main.manage_petty_cash'))
 
@@ -636,6 +707,14 @@ def download_all_customers_report():
             'Customer ID': c.customer_id,
             'Customer Name': c.name,
             'Phone': c.phone,
+            'Father Name': c.father_name,
+            'Mother Name': c.mother_name,
+            'DOB': c.dob,
+            'Religion': c.religion,
+            'Profession': c.profession,
+            'NID No': c.nid_no,
+            'Present Address': c.present_address,
+            'Permanent Address': c.permanent_address,
             'Plot No': c.plot_no,
             'Total Price': c.total_price,
             'Down Payment': c.down_payment,
@@ -666,6 +745,14 @@ def download_director_customers_report(id):
             'Customer ID': c.customer_id,
             'Customer Name': c.name,
             'Phone': c.phone,
+            'Father Name': c.father_name,
+            'Mother Name': c.mother_name,
+            'DOB': c.dob,
+            'Religion': c.religion,
+            'Profession': c.profession,
+            'NID No': c.nid_no,
+            'Present Address': c.present_address,
+            'Permanent Address': c.permanent_address,
             'Plot No': c.plot_no,
             'Total Price': c.total_price,
             'Down Payment': c.down_payment,
@@ -696,6 +783,14 @@ def download_individual_customer_report(id):
         {'Field': 'Name', 'Value': c.name},
         {'Field': 'Director', 'Value': c.director.name},
         {'Field': 'Phone', 'Value': c.phone},
+        {'Field': 'Father Name', 'Value': c.father_name},
+        {'Field': 'Mother Name', 'Value': c.mother_name},
+        {'Field': 'DOB', 'Value': c.dob},
+        {'Field': 'Religion', 'Value': c.religion},
+        {'Field': 'Profession', 'Value': c.profession},
+        {'Field': 'NID No', 'Value': c.nid_no},
+        {'Field': 'Present Address', 'Value': c.present_address},
+        {'Field': 'Permanent Address', 'Value': c.permanent_address},
         {'Field': 'Plot No', 'Value': c.plot_no},
         {'Field': 'Total Price', 'Value': c.total_price},
         {'Field': 'Down Payment', 'Value': c.down_payment},
@@ -760,6 +855,7 @@ def manage_banks():
         db.session.add(new_bank)
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Added Bank: " + request.form.get('bank_name'))
         flash('Bank Account Added!', 'success')
         return redirect(url_for('main.manage_banks'))
         
@@ -791,6 +887,7 @@ def edit_bank(id):
     
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Edited Bank: " + bank.bank_name)
     flash('Bank Account Updated!', 'success')
     return redirect(url_for('main.manage_banks'))
 
@@ -804,6 +901,7 @@ def delete_bank(id):
     db.session.delete(bank)
     db.session.commit()
     sync_to_excel()
+    backup_to_telegram("Deleted Bank: " + bank.bank_name)
     flash('Bank Account Deleted!', 'warning')
     return redirect(url_for('main.manage_banks'))
 
@@ -849,6 +947,7 @@ def bank_ledger(id):
         db.session.add(new_tx)
         db.session.commit()
         sync_to_excel()
+        backup_to_telegram("Added Bank Ledger Tx")
         flash('Transaction Added to Ledger!', 'success')
         return redirect(url_for('main.bank_ledger', id=id))
         
@@ -915,6 +1014,7 @@ def delete_bank_transaction(id):
     db.session.commit()
     
     sync_to_excel()
+    backup_to_telegram("Deleted Bank Tx")
     flash('Transaction Deleted & Balances Recomputed!', 'warning')
     return redirect(url_for('main.bank_ledger', id=bank_id))
 

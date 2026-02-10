@@ -36,7 +36,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-success text-uppercase">Total Credit (Deposit)</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.2f}".format(total_credit) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.2f}".format(total_credit) }}</div>
                     </div>
                 </div>
             </div>
@@ -44,7 +44,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-danger text-uppercase">Total Debit (Withdrawal)</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.2f}".format(total_debit) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.2f}".format(total_debit) }}</div>
                     </div>
                 </div>
             </div>
@@ -52,7 +52,7 @@
                 <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
                     <div class="card-body text-center p-3">
                         <div class="small fw-bold text-primary text-uppercase">Current Balance</div>
-                        <div class="h3 fw-bold text-dark mb-0">${{ "{:,.2f}".format(display_balance) }}</div>
+                        <div class="h3 fw-bold text-dark mb-0">৳{{ "{:,.2f}".format(display_balance) }}</div>
                     </div>
                 </div>
             </div>
@@ -116,7 +116,7 @@
                                 <td class="text-end text-danger">{{ "{:,.2f}".format(tx.debit) if tx.debit > 0 else '-' }}</td>
                                 <td class="text-end fw-bold text-dark">{{ "{:,.2f}".format(tx.balance) }}</td>
                                 <td class="text-end pe-4">
-                                    <a href="#" onclick="return confirmDelete(event, `{{ url_for('main.delete_bank_transaction', id=tx.id) }}`)" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">
+                                    <a href="#" onclick="return confirmDelete(event, '{{ url_for('main.delete_bank_transaction', id=tx.id) }}')" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">
                                         <i class="fas fa-trash-alt"></i>
                                     </a>
                                 </td>
@@ -181,14 +181,14 @@
                         <div class="col-12" id="creditInputDiv">
                             <label class="form-label small fw-bold text-muted">Credit Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">$</span>
+                                <span class="input-group-text">৳</span>
                                 <input type="number" step="0.01" name="credit" id="inputCredit" class="form-control" placeholder="0.00">
                             </div>
                         </div>
                          <div class="col-12 d-none" id="debitInputDiv">
                             <label class="form-label small fw-bold text-muted">Debit Amount</label>
                             <div class="input-group">
-                                <span class="input-group-text">$</span>
+                                <span class="input-group-text">৳</span>
                                 <input type="number" step="0.01" name="debit" id="inputDebit" class="form-control" placeholder="0.00">
                             </div>
                         </div>

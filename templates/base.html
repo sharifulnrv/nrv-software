@@ -83,8 +83,17 @@
         </div>
     </div>
 
-    <!-- Hidden Form for Link Deletions -->
-    <form id="globalDeleteForm" method="POST" style="display:none;">
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-flex align-items-center justify-content-center" style="z-index: 9999;">
+        <div class="text-center text-white">
+            <div class="spinner-border mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+            <h5 class="fw-bold">Processing...</h5>
+            <p class="small text-white-50">Please wait while we save your data.</p>
+        </div>
+    </div>
+
+    <!-- Hidden Global Delete Form -->
+    <form id="globalDeleteForm" method="POST" style="display: none;">
         <input type="hidden" name="admin_password" id="globalDeletePassword">
     </form>
 
@@ -138,8 +147,9 @@
             }
 
             if (pendingFormId) {
-                // Determine if we need to append input or set existing
                 const form = document.getElementById(pendingFormId);
+                
+                // Set Password
                 let pwInput = form.querySelector('input[name="admin_password"]');
                 if (!pwInput) {
                     pwInput = document.createElement('input');
@@ -148,13 +158,33 @@
                     form.appendChild(pwInput);
                 }
                 pwInput.value = password;
+                
+                // Hide Auth Modal
                 authModal.hide();
+                
+                // Hide Parent Modal (if form is inside one)
+                const parentModal = form.closest('.modal');
+                if (parentModal) {
+                    const modalInstance = bootstrap.Modal.getInstance(parentModal);
+                    if (modalInstance) modalInstance.hide();
+                }
+
+                // Show Loading Overlay
+                document.getElementById('loadingOverlay').classList.remove('d-none');
+                
+                // Submit
                 form.submit();
+
             } else if (pendingDeleteUrl) {
                 const form = document.getElementById('globalDeleteForm');
                 form.action = pendingDeleteUrl;
                 document.getElementById('globalDeletePassword').value = password;
+                
                 authModal.hide();
+                
+                // Show Loading Overlay
+                document.getElementById('loadingOverlay').classList.remove('d-none');
+                
                 form.submit();
             }
         }

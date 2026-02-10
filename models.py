@@ -34,6 +34,16 @@ class Customer(db.Model):
     
     transactions = db.relationship('Transaction', backref='customer', lazy=True, cascade="all, delete-orphan")
 
+    # New Fields
+    father_name = db.Column(db.String(100))
+    mother_name = db.Column(db.String(100))
+    dob = db.Column(db.String(20)) # Date of Birth
+    religion = db.Column(db.String(50))
+    profession = db.Column(db.String(100))
+    nid_no = db.Column(db.String(50))
+    present_address = db.Column(db.String(255))
+    permanent_address = db.Column(db.String(255))
+
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     date = db.Column(db.String(20), nullable=False)

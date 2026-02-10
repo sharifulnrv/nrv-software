@@ -75,7 +75,7 @@
                                             onclick='openEditModal({{ bank.to_dict()|tojson }})' title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <a href="#" onclick="return confirmDelete(event, `{{ url_for('main.delete_bank', id=bank.id) }}`)" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">
+                                    <a href="#" onclick="return confirmDelete(event, '{{ url_for('main.delete_bank', id=bank.id) }}')" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">
                                         <i class="fas fa-trash-alt"></i>
                                     </a>
                                 </div>

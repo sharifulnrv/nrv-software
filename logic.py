@@ -6,7 +6,7 @@ import shutil
 from datetime import datetime
 from datetime import datetime
 from database import db
-from telegram_utils import send_telegram_document
+from telegram_utils import send_telegram_document, log_debug
 
 EXCEL_FILE = 'nexus_river_view_master.xlsx' if __name__ != '__main__' else 'test_nexus_river_view.xlsx'
 
@@ -16,6 +16,25 @@ def sync_to_excel():
     creates a consolidated table, sorts by Director,
     and writes to the Master Excel file.
     """
+    try:
+        # ... logic to create dataframes ...
+        # Since I am replacing a large chunk, I must be careful not to delete the data preparation logic.
+        # However, the user instruction said "logic.py" at "sync_to_excel".
+        # The previous view showed the function is long.
+        # I should use multi_replace or targeted replace.
+        # But I need to wrap the whole function in try...except for logging?
+        # The function already has a try...except block starting at line 187.
+        # I will just update the imports and the existing try...except block.
+        pass
+    except:
+        pass
+
+# Wait, I cannot use ReplacementContent with "..." placeholder logic.
+# I need to be precise.
+# Let's use 2 replacements. 
+# 1. Imports
+# 2. The try-except block at the end.
+
     directors = Director.query.all()
     # Create a mapping of Director ID to Name for easy lookup, although we can join in query
     # But let's fetch all customers joined with directors
@@ -185,7 +204,17 @@ def sync_to_excel():
     # Write to Excel
     # We use engine='openpyxl' for xlsx
     try:
-        with pd.ExcelWriter(EXCEL_FILE, engine='openpyxl') as writer:
+        # Determine Excel Path based on DATA_FOLDER
+        from flask import current_app
+        data_folder = current_app.config.get('DATA_FOLDER', '.')
+        
+        # Use simple filename if in dev mode main, else DATA_FOLDER
+        if __name__ == '__main__':
+             target_excel_path = EXCEL_FILE 
+        else:
+             target_excel_path = os.path.join(data_folder, 'nexus_river_view_master.xlsx')
+             
+        with pd.ExcelWriter(target_excel_path, engine='openpyxl') as writer:
             df.to_excel(writer, sheet_name='Master_Data', index=False)
             df_directors.to_excel(writer, sheet_name='Directors_Summary', index=False)
             df_petty.to_excel(writer, sheet_name='Petty_Cash', index=False)
@@ -211,12 +240,14 @@ def sync_to_excel():
                         adjusted_width = (max_length + 2)
                         worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
                 
-        print(f"Successfully synced to {EXCEL_FILE}")
+        print(f"Successfully synced to {target_excel_path}")
+        log_debug(f"Synced Excel to: {target_excel_path}")
         
         # --- Auto-Backup Logic ---
         # Only create backup if it's the real file, not test
         if 'test_' not in EXCEL_FILE:
-            backup_dir = 'backups'
+            # Create backups folder in DATA_FOLDER
+            backup_dir = os.path.join(data_folder, 'backups')
             if not os.path.exists(backup_dir):
                 os.makedirs(backup_dir)
                 
@@ -224,20 +255,32 @@ def sync_to_excel():
             backup_filename = f"nexus_backup_{timestamp}.xlsx"
             backup_path = os.path.join(backup_dir, backup_filename)
             
-            shutil.copy2(EXCEL_FILE, backup_path)
-            shutil.copy2(EXCEL_FILE, backup_path)
+            shutil.copy2(target_excel_path, backup_path)
             print(f"Backup created: {backup_path}")
+            log_debug(f"Backup created at: {backup_path}")
             
             # Send to Telegram
-            send_telegram_document(backup_path, caption=f"Auto-Backup: {backup_filename}")
-            # Also send the live DB file
-            db_path = os.path.join('instance', 'nexus.db')
-            if os.path.exists(db_path):
-                 send_telegram_document(db_path, caption=f"Live DB Backup: {timestamp}")
+            log_debug("Initiating Telegram backup upload...")
+            if send_telegram_document(backup_path, caption=f"Auto-Backup: {backup_filename}"):
+                 log_debug("Excel backup sent to Telegram.")
+            else:
+                 log_debug("Failed to send Excel backup to Telegram.")
 
+            # Also send the live DB file
+            # DB is in DATA_FOLDER
+            db_path = os.path.join(data_folder, 'nexus.db')
+            if os.path.exists(db_path):
+                 log_debug(f"Sending DB backup: {db_path}")
+                 if send_telegram_document(db_path, caption=f"Live DB Backup: {timestamp}"):
+                     log_debug("DB backup sent to Telegram.")
+                 else:
+                     log_debug("Failed to send DB backup to Telegram.")
+            else:
+                 log_debug(f"DB file not found at {db_path}")
             
     except Exception as e:
         print(f"Error syncing to Excel: {e}")
+        log_debug(f"CRITICAL ERROR in sync_to_excel: {e}")
 
 def restore_from_excel(file_path):
     """

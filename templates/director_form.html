@@ -39,7 +39,7 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label text-muted small fw-bold">Per Share Value</label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text">৳</span>
                             <input type="number" step="0.01" name="per_share_value" class="form-control"
                                 value="{{ director.per_share_value if director else '' }}">
                         </div>
@@ -47,7 +47,7 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label text-muted small fw-bold">Fair Cost</label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text">৳</span>
                             <input type="number" step="0.01" name="fair_cost" class="form-control"
                                 value="{{ director.fair_cost if director else '' }}">
                         </div>
@@ -55,7 +55,7 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label text-muted small fw-bold">Extra Land Value</label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text">৳</span>
                             <input type="number" step="0.01" name="land_value_extra_share" class="form-control"
                                 value="{{ director.land_value_extra_share if director else '' }}">
                         </div>
@@ -74,7 +74,7 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label text-muted small fw-bold">Total Paid So Far</label>
                         <div class="input-group">
-                            <span class="input-group-text bg-success text-white">$</span>
+                            <span class="input-group-text bg-success text-white">৳</span>
                             <input type="number" step="0.01" name="total_paid" class="form-control fw-bold text-success"
                                 value="{{ director.total_paid if director else '' }}">
                         </div>
@@ -87,12 +87,14 @@
                     <div class="col-md-4 mb-3">
                         <label class="form-label text-muted small fw-bold">Last Deposit Amount</label>
                         <div class="input-group">
-                            <span class="input-group-text">$</span>
+                            <span class="input-group-text">৳</span>
                             <input type="number" step="0.01" name="last_payment_amount" class="form-control"
                                 value="{{ director.last_payment_amount if director else '' }}">
                         </div>
                     </div>
                 </div>
+
+
 
                 <div class="d-grid gap-2 mt-4">
                     <button type="submit" class="btn btn-primary btn-lg shadow-sm">Save Director</button>

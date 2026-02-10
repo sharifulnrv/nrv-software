@@ -37,7 +37,7 @@
         <div class="card border-0 shadow-sm h-100 bg-primary bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-primary mb-1">Total Payable (Directors)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(grand_total_payable) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(grand_total_payable) }}</div>
             </div>
         </div>
     </div>
@@ -45,7 +45,7 @@
         <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-success mb-1">Total Paid (Directors)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(grand_total_paid) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(grand_total_paid) }}</div>
             </div>
         </div>
     </div>
@@ -53,7 +53,7 @@
         <div class="card border-0 shadow-sm h-100 bg-danger bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-danger mb-1">Total Due (Directors)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(grand_total_due) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(grand_total_due) }}</div>
             </div>
         </div>
     </div>
@@ -68,7 +68,7 @@
         <div class="card border-0 shadow-sm h-100 bg-info bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-info mb-1">Total Price (Customers)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(cust_total_payable) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(cust_total_payable) }}</div>
             </div>
         </div>
     </div>
@@ -76,7 +76,7 @@
         <div class="card border-0 shadow-sm h-100 bg-success bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-success mb-1">Total Paid (Customers)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(cust_total_paid) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(cust_total_paid) }}</div>
             </div>
         </div>
     </div>
@@ -84,7 +84,7 @@
         <div class="card border-0 shadow-sm h-100 bg-warning bg-opacity-10">
             <div class="card-body text-center p-3">
                 <div class="text-uppercase small fw-bold text-warning mb-1">Total Due (Customers)</div>
-                <div class="fs-2 fw-bold text-dark">${{ "{:,.0f}".format(cust_total_due) }}</div>
+                <div class="fs-2 fw-bold text-dark">৳{{ "{:,.0f}".format(cust_total_due) }}</div>
             </div>
         </div>
     </div>
@@ -115,15 +115,15 @@
                     <span class="ms-auto me-3 text-muted small">
                         <i class="fas fa-phone-alt me-1"></i> {{ director.phone }}
                     </span>
-                    <a href="{{ url_for('main.download_director_customers_report', id=director.id) }}" 
-                       class="btn btn-sm btn-outline-success me-3 rounded-pill" onclick="event.stopPropagation();">
-                       <i class="fas fa-file-excel me-1"></i> Export List
-                    </a>
                 </button>
                 <div class="border-bottom p-2 bg-light d-flex align-items-center" style="min-height: 100%;">
+                    <a href="{{ url_for('main.download_director_customers_report', id=director.id) }}" 
+                       class="btn btn-sm btn-outline-success me-1 rounded-pill text-nowrap" title="Export List">
+                       <i class="fas fa-file-excel"></i>
+                    </a>
                     <a href="{{ url_for('main.edit_director', id=director.id) }}"
                         class="btn btn-sm btn-outline-secondary me-1 rounded-pill text-nowrap">Edit</a>
-                    <a href="#" onclick="return confirmDelete(event, `{{ url_for('main.delete_director', id=director.id) }}`)"
+                    <a href="#" onclick="return confirmDelete(event, '{{ url_for('main.delete_director', id=director.id) }}')"
                         class="btn btn-sm btn-outline-danger rounded-pill text-nowrap">Delete</a>
                 </div>
             </div>
@@ -145,30 +145,30 @@
                         <div class="col-md-3 border-end">
                             <div class="text-muted small text-uppercase fw-bold mb-1">Share Info</div>
                             <div>Total Share: <strong>{{ director.total_share }}</strong></div>
-                            <div>Per Share: ${{ "{:,.0f}".format(director.per_share_value) }}</div>
-                            <div>Fair Cost: ${{ "{:,.0f}".format(director.fair_cost) }}</div>
+                            <div>Per Share: ৳{{ "{:,.0f}".format(director.per_share_value) }}</div>
+                            <div>Fair Cost: ৳{{ "{:,.0f}".format(director.fair_cost) }}</div>
                             <div class="text-primary fw-bold mt-1">
-                                Value: ${{ "{:,.0f}".format(director.total_share * director.per_share_value) }}
+                                Value: ৳{{ "{:,.0f}".format(director.total_share * director.per_share_value) }}
                             </div>
                         </div>
                         <div class="col-md-3 border-end">
                             <div class="text-muted small text-uppercase fw-bold mb-1">Assets & Dues</div>
-                            <div>Extra Land: ${{ "{:,.0f}".format(director.land_value_extra_share) }}</div>
+                            <div>Extra Land: ৳{{ "{:,.0f}".format(director.land_value_extra_share) }}</div>
                             <div class="mt-2 text-muted small text-uppercase fw-bold">Total Payable</div>
                             {% set total_share_val = director.total_share * director.per_share_value %}
-                            <div class="fw-bold text-dark">${{ "{:,.0f}".format(total_share_val +
+                            <div class="fw-bold text-dark">৳{{ "{:,.0f}".format(total_share_val +
                                 director.land_value_extra_share) }}</div>
                         </div>
                         <div class="col-md-3">
                             <div class="text-muted small text-uppercase fw-bold mb-1">Payment Status</div>
                             <div class="d-flex justify-content-between">
                                 <span>Paid:</span>
-                                <span class="text-success fw-bold">${{ "{:,.0f}".format(director.total_paid) }}</span>
+                                <span class="text-success fw-bold">৳{{ "{:,.0f}".format(director.total_paid) }}</span>
                             </div>
                             <div class="d-flex justify-content-between">
                                 <span>Due:</span>
                                 {% set total_payable = total_share_val + director.land_value_extra_share %}
-                                <span class="text-danger fw-bold">${{ "{:,.0f}".format(total_payable -
+                                <span class="text-danger fw-bold">৳{{ "{:,.0f}".format(total_payable -
                                     director.total_paid) }}</span>
                             </div>
                             <div class="mt-2 small text-muted border-top pt-2">
@@ -212,8 +212,8 @@
                                         class="text-info me-3" title="Transactions"><i class="fas fa-receipt"></i></a>
                                     <a href="{{ url_for('main.edit_customer', id=customer.id) }}"
                                         class="text-primary me-3" title="Edit"><i class="fas fa-edit"></i></a>
-                                    <a href="{{ url_for('main.delete_customer', id=customer.id) }}" class="text-danger"
-                                        title="Delete" onclick="return confirmDelete(event, `{{ url_for('main.delete_customer', id=customer.id) }}`)"><i
+                                    <a href="#" class="text-danger"
+                                        title="Delete" onclick="return confirmDelete(event, '{{ url_for('main.delete_customer', id=customer.id) }}')"><i
                                             class="fas fa-trash-alt"></i></a>
                                 </td>
                             </tr>
