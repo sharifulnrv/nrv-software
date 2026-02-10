@@ -116,6 +116,10 @@
                                 <td class="text-end text-danger">{{ "{:,.2f}".format(tx.debit) if tx.debit > 0 else '-' }}</td>
                                 <td class="text-end fw-bold text-dark">{{ "{:,.2f}".format(tx.balance) }}</td>
                                 <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-light text-primary rounded-circle me-1" 
+                                            onclick='openEditModal({{ tx.to_dict()|tojson }})' title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
                                     <a href="#" onclick="return confirmDelete(event, '{{ url_for('main.delete_bank_transaction', id=tx.id) }}')" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">
                                         <i class="fas fa-trash-alt"></i>
                                     </a>
@@ -134,12 +138,12 @@
     </div>
 </div>
 
-<!-- Add Transaction Modal -->
+<!-- Add/Edit Transaction Modal -->
 <div class="modal fade" id="txModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
             <div class="modal-header bg-light border-0">
-                <h5 class="modal-title fw-bold">Add Transaction</h5>
+                <h5 class="modal-title fw-bold" id="modalTitle">Add Transaction</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
@@ -147,23 +151,23 @@
                     <div class="row g-3">
                         <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Date *</label>
-                            <input type="date" name="date" class="form-control" required value="{{ current_date }}">
+                            <input type="date" name="date" id="inputDate" class="form-control" required>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted">Cheque No</label>
-                            <input type="text" name="cheque_no" class="form-control">
+                            <input type="text" name="cheque_no" id="inputCheque" class="form-control">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold text-muted">Reference No</label>
-                            <input type="text" name="ref_no" class="form-control">
+                            <input type="text" name="ref_no" id="inputRef" class="form-control">
                         </div>
                         <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Narration</label>
-                            <input type="text" name="narration" class="form-control">
+                            <input type="text" name="narration" id="inputNarration" class="form-control">
                         </div>
                          <div class="col-12">
                             <label class="form-label small fw-bold text-muted">Transaction Details</label>
-                            <input type="text" name="transaction_details" class="form-control">
+                            <input type="text" name="transaction_details" id="inputDetails" class="form-control">
                         </div>
                         
                         <!-- Transaction Type Toggle -->
@@ -194,7 +198,7 @@
                         </div>
 
                         <div class="col-12 mt-4">
-                            <button type="submit" class="btn btn-primary w-100 fw-bold py-2">Save Transaction</button>
+                            <button type="submit" class="btn btn-primary w-100 fw-bold py-2" id="modalSubmitBtn">Save Transaction</button>
                         </div>
                     </div>
                 </form>
@@ -209,12 +213,48 @@
     var txModal;
     document.addEventListener("DOMContentLoaded", function(){
         txModal = new bootstrap.Modal(document.getElementById('txModal'));
-        
-        // Set Default Date
-        document.querySelector('input[name="date"]').value = new Date().toISOString().slice(0, 10);
     });
 
     function openTxModal() {
+        document.getElementById('modalTitle').innerText = 'Add Transaction';
+        document.getElementById('modalSubmitBtn').innerText = 'Save Transaction';
+        document.getElementById('txForm').action = "{{ url_for('main.bank_ledger', id=bank.id) }}";
+        
+        // Reset Fields
+        document.getElementById('txForm').reset();
+        document.getElementById('inputDate').value = new Date().toISOString().slice(0, 10);
+        
+        // Reset Type to Credit
+        document.getElementById('typeCredit').checked = true;
+        toggleInputs();
+        
+        txModal.show();
+    }
+
+    function openEditModal(tx) {
+        document.getElementById('modalTitle').innerText = 'Edit Transaction';
+        document.getElementById('modalSubmitBtn').innerText = 'Update Transaction';
+        document.getElementById('txForm').action = "/bank/transaction/edit/" + tx.id;
+        
+        // Populate Fields
+        document.getElementById('inputDate').value = tx.date; // Ensure format matches yyyy-MM-dd if needed, or reliance on string
+        document.getElementById('inputCheque').value = tx.cheque_no || '';
+        document.getElementById('inputRef').value = tx.ref_no || '';
+        document.getElementById('inputNarration').value = tx.narration || '';
+        document.getElementById('inputDetails').value = tx.transaction_details || '';
+        
+        // Determine Type
+        if (tx.credit > 0) {
+            document.getElementById('typeCredit').checked = true;
+            document.getElementById('inputCredit').value = tx.credit;
+            document.getElementById('inputDebit').value = '';
+        } else {
+            document.getElementById('typeDebit').checked = true;
+            document.getElementById('inputDebit').value = tx.debit;
+            document.getElementById('inputCredit').value = '';
+        }
+        toggleInputs();
+        
         txModal.show();
     }
 

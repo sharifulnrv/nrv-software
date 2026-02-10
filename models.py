@@ -116,3 +116,17 @@ class BankTransaction(db.Model):
     balance = db.Column(db.Float, default=0.0) # Running balance at time of tx
     
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.date,
+            'cheque_no': self.cheque_no,
+            'ref_no': self.ref_no,
+            'narration': self.narration,
+            'transaction_details': self.transaction_details,
+            'debit': self.debit,
+            'credit': self.credit,
+            'balance': self.balance,
+            'bank_id': self.bank_id
+        }

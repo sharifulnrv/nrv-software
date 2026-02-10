@@ -115,10 +115,10 @@
                                                     {% if img.lower().endswith('.pdf') %}
                                                         <a href="{{ url_for('static', filename='uploads/' + img) }}" target="_blank" class="text-danger me-1 fs-5" title="View PDF"><i class="fas fa-file-pdf"></i></a>
                                                     {% elif img.lower().endswith('.doc') or img.lower().endswith('.docx') %}
-                                                        <a href="{{ url_for('static', filename='uploads/' + img) }}" class="text-primary me-1 fs-5" title="Download Doc"><i class="fas fa-file-word"></i></a>
+                                                        <a href="{{ url_for('main.uploaded_file', filename=img) }}" class="text-primary me-1 fs-5" title="Download Doc"><i class="fas fa-file-word"></i></a>
                                                     {% else %}
-                                                        <a href="{{ url_for('static', filename='uploads/' + img) }}" target="_blank" class="d-inline-block me-1">
-                                                            <img src="{{ url_for('static', filename='uploads/' + img) }}" class="img-thumbnail rounded-circle" style="height: 30px; width: 30px; object-fit: cover;">
+                                                        <a href="{{ url_for('main.uploaded_file', filename=img) }}" target="_blank" class="d-inline-block me-1">
+                                                            <img src="{{ url_for('main.uploaded_file', filename=img) }}" class="img-thumbnail rounded-circle" style="height: 30px; width: 30px; object-fit: cover;">
                                                         </a>
                                                     {% endif %}
                                                 {% endfor %}

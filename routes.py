@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 from models import Director, Customer, Transaction, PettyCash, Bank, BankTransaction
@@ -29,6 +29,10 @@ def backup_to_telegram(action_name="Database Update"):
         # We don't want to break the user flow if backup fails, just log it.
 
 main = Blueprint('main', __name__)
+
+@main.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(current_app.config['UPLOAD_FOLDER'], filename)
 
 @main.route('/')
 def index():
@@ -909,6 +913,9 @@ def delete_bank(id):
 def bank_ledger(id):
     bank = Bank.query.get_or_404(id)
     
+    # Force recompute on view to ensure existing data is corrected
+    recompute_bank_balances(id)
+    
     if request.method == 'POST':
         if not verify_password():
             flash('Invalid Admin Password!', 'danger')
@@ -919,18 +926,13 @@ def bank_ledger(id):
         ref_no = request.form.get('ref_no')
         narration = request.form.get('narration')
         transaction_details = request.form.get('transaction_details')
-        debit = float(request.form.get('debit') or 0)
-        credit = float(request.form.get('credit') or 0)
-        
-        # Calculate Balance
-        # Simple approach: Get last transaction balance or 0, then add credit/sub debit
-        # NOTE: This simple approach assumes append-only. 
-        # For a real ledger with back-dated edits, we'd need to recompute subsequent balances.
-        # Given the requirements (like Petty Cash), we'll do simple running balance for now.
-        
-        last_tx = BankTransaction.query.filter_by(bank_id=id).order_by(BankTransaction.id.desc()).first()
-        current_bal = last_tx.balance if last_tx else 0.0
-        new_balance = current_bal + credit - debit
+        tx_type = request.form.get('tx_type')
+        if tx_type == 'credit':
+            credit = float(request.form.get('credit') or 0)
+            debit = 0.0
+        else:
+            debit = float(request.form.get('debit') or 0)
+            credit = 0.0
         
         new_tx = BankTransaction(
             date=date,
@@ -940,18 +942,34 @@ def bank_ledger(id):
             transaction_details=transaction_details,
             debit=debit,
             credit=credit,
-            balance=new_balance,
+            balance=0,
             bank=bank
         )
-        
+
         db.session.add(new_tx)
         db.session.commit()
+        
+        # Recompute Balances
+        recompute_bank_balances(id)
+        
         sync_to_excel()
         backup_to_telegram("Added Bank Ledger Tx")
         flash('Transaction Added to Ledger!', 'success')
         return redirect(url_for('main.bank_ledger', id=id))
         
-    transactions = BankTransaction.query.filter_by(bank_id=id).order_by(BankTransaction.id).all()
+    transactions = BankTransaction.query.filter_by(bank_id=id).all()
+    
+    # Sort in Python to handle Date Parsing correctly
+    # DB Date is String, format mostly YYYY-MM-DD or DD-MM-YYYY
+    def parse_tx_date(tx):
+        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                return datetime.strptime(tx.date, fmt)
+            except ValueError:
+                pass
+        return datetime.min # Fallback
+
+    transactions.sort(key=lambda x: (parse_tx_date(x), x.id))
     
     # --- Date Filter Logic ---
     start_date_str = request.args.get('start_date')
@@ -966,8 +984,8 @@ def bank_ledger(id):
         
         for tx in transactions:
             try:
-                # Convert DB date (DD-MM-YYYY -> datetime)
-                tx_date = datetime.strptime(tx.date, '%d-%m-%Y')
+                # Use helper or direct parse
+                tx_date = parse_tx_date(tx)
                 
                 # Apply Filter
                 if start_date and tx_date < start_date:
@@ -977,12 +995,37 @@ def bank_ledger(id):
                 
                 filtered_transactions.append(tx)
             except ValueError:
-                # Handle cases where DB date format might be irregular
                 filtered_transactions.append(tx)
                 
         transactions = filtered_transactions
 
     return render_template('bank_ledger.html', bank=bank, transactions=transactions, start_date=start_date_str, end_date=end_date_str)
+
+def recompute_bank_balances(bank_id):
+    """
+    Recalculates the running balance for all transactions of a specific bank.
+    Sorts by Date (asc) and then ID (asc).
+    Handles mixed date formats (YYYY-MM-DD vs DD-MM-YYYY).
+    """
+    transactions = BankTransaction.query.filter_by(bank_id=bank_id).all()
+    
+    def parse_date(date_str):
+        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+            try:
+                return datetime.strptime(date_str, fmt)
+            except ValueError:
+                pass
+        return datetime.min
+
+    # Sort transactions
+    transactions.sort(key=lambda x: (parse_date(x.date), x.id))
+    
+    running_balance = 0.0
+    for tx in transactions:
+        running_balance += (tx.credit - tx.debit)
+        tx.balance = running_balance
+        
+    db.session.commit()
 
 @main.route('/bank/transaction/delete/<int:id>', methods=['POST'])
 def delete_bank_transaction(id):
@@ -997,25 +1040,50 @@ def delete_bank_transaction(id):
     tx = BankTransaction.query.get_or_404(id)
     bank_id = tx.bank_id
     
-    # NOTE: Deleting a transaction in the middle breaks running balance for subsequent rows.
-    # We will delete it, but advise user to export/re-import or handle carefully.
-    # A full recompute function would be ideal here if strict accounting is needed.
-    # For now, we just delete.
-    
     db.session.delete(tx)
     db.session.commit()
     
-    # Simple Recompute of ALL transactions for this bank to fix balance
-    all_txs = BankTransaction.query.filter_by(bank_id=bank_id).order_by(BankTransaction.date, BankTransaction.id).all()
-    running_bal = 0
-    for t in all_txs:
-        running_bal += (t.credit - t.debit)
-        t.balance = running_bal
-    db.session.commit()
+    recompute_bank_balances(bank_id)
     
     sync_to_excel()
-    backup_to_telegram("Deleted Bank Tx")
+    backup_to_telegram("Deleted Bank Tx: " + (tx.narration or str(id)))
     flash('Transaction Deleted & Balances Recomputed!', 'warning')
+    return redirect(url_for('main.bank_ledger', id=bank_id))
+
+@main.route('/bank/transaction/edit/<int:id>', methods=['POST'])
+def edit_bank_transaction(id):
+    if not verify_password():
+        flash('Invalid Admin Password!', 'danger')
+        tx = BankTransaction.query.get(id)
+        if tx:
+            return redirect(url_for('main.bank_ledger', id=tx.bank_id))
+        return redirect(url_for('main.manage_banks'))
+
+    tx = BankTransaction.query.get_or_404(id)
+    bank_id = tx.bank_id
+    
+    # Update Data
+    tx.date = request.form.get('date')
+    tx.cheque_no = request.form.get('cheque_no')
+    tx.ref_no = request.form.get('ref_no')
+    tx.narration = request.form.get('narration')
+    tx.transaction_details = request.form.get('transaction_details')
+    tx_type = request.form.get('tx_type')
+    if tx_type == 'credit':
+        tx.credit = float(request.form.get('credit') or 0)
+        tx.debit = 0.0
+    else:
+        tx.debit = float(request.form.get('debit') or 0)
+        tx.credit = 0.0
+    
+    # Save first to establish new values
+    db.session.commit()
+    
+    recompute_bank_balances(bank_id)
+    
+    sync_to_excel()
+    backup_to_telegram("Edited Bank Tx: " + (tx.narration or str(id)))
+    flash('Transaction Updated & Balances Recomputed!', 'success')
     return redirect(url_for('main.bank_ledger', id=bank_id))
 
 @main.route('/bank/<int:id>/export')
