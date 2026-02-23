@@ -5,3 +5,5 @@ pandas
 openpyxl
 requests
 certifi
+gspread
+oauth2client

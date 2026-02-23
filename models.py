@@ -1,4 +1,5 @@
 from database import db
+from datetime import datetime
 
 class Director(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -15,6 +16,7 @@ class Director(db.Model):
     
     total_paid = db.Column(db.Float, default=0.0)
     payment_history = db.Column(db.Text) # Date & Deposit text blob
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     customers = db.relationship('Customer', backref='director', lazy=True)
 
@@ -43,6 +45,7 @@ class Customer(db.Model):
     nid_no = db.Column(db.String(50))
     present_address = db.Column(db.String(255))
     permanent_address = db.Column(db.String(255))
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,6 +58,7 @@ class Transaction(db.Model):
     images = db.Column(db.Text) # Comma-separated paths
     
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class PettyCash(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,6 +68,7 @@ class PettyCash(db.Model):
     type = db.Column(db.String(20), nullable=False) # 'Income' or 'Expense'
     amount = db.Column(db.Float, nullable=False)
     images = db.Column(db.Text) # Comma-separated filenames
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class Bank(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -81,6 +86,7 @@ class Bank(db.Model):
     account_type = db.Column(db.String(50)) # Savings, Current, etc.
     currency = db.Column(db.String(10))
     status = db.Column(db.String(20), default='Active') # Active/Inactive
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     
     transactions = db.relationship('BankTransaction', backref='bank', lazy=True, cascade="all, delete-orphan")
@@ -116,6 +122,7 @@ class BankTransaction(db.Model):
     balance = db.Column(db.Float, default=0.0) # Running balance at time of tx
     
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
         return {

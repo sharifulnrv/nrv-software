@@ -2,10 +2,18 @@ from flask import Flask
 from database import db
 from routes import main
 import os
-
 import sys
+import logging
 
-import sys
+# Setup Logging
+def setup_logging(data_dir):
+    log_file = os.path.join(data_dir, 'nexus_startup.log')
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    return logging.getLogger(__name__)
 
 def create_app():
     app = Flask(__name__)
@@ -22,6 +30,9 @@ def create_app():
         else:
             base_path = app.root_path
             data_dir = app.instance_path
+    
+    logger = setup_logging(data_dir)
+    logger.info("Application starting...")
 
     # DB Path
     # Always put DB in the determined data_dir
@@ -91,6 +102,26 @@ def create_app():
     
     with app.app_context():
         db.create_all()
+        # Startup Sync Check
+        from sync_manager import sync_manager
+        db_path = app.config.get('DATABASE_PATH')
+        
+        if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
+            print("Database missing. Attempting recovery from Google Sheets...")
+            success, msg = sync_manager.restore_db_from_sheets()
+            if success:
+                print("Database restored from Google Sheets.")
+            else:
+                print(f"Recovery failed: {msg}")
+        else:
+            # Check for mismatches
+            status, details = sync_manager.check_for_mismatches()
+            if status == "mismatch":
+                app.config['SYNC_MISMATCH'] = details
+                print(f"Sync Mismatch Detected: {details}")
+            elif status == "empty_sheets":
+                print("Google Sheets is empty. Initializing with local data...")
+                sync_manager.sync_to_sheets()
         
     return app
 

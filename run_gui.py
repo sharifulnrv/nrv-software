@@ -5,6 +5,7 @@ import os
 import subprocess
 import webbrowser
 import json
+import socket
 import tkinter as tk
 from tkinter import filedialog
 from app import create_app
@@ -123,29 +124,37 @@ if __name__ == '__main__':
     
     url = 'http://127.0.0.1:5000'
 
-    # 4. Launch GUI
+    # 4. Launch GUI Immediately with Loading Page
+    # Determine loading page path
+    if getattr(sys, 'frozen', False):
+        base_dir = sys._MEIPASS
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    loading_html = os.path.join(base_dir, 'templates', 'loading_startup.html')
+    
+    # Determine icon path
+    icon_path = None
+    icon_name = 'nexus-river-view-600x866.ico'
+    if getattr(sys, 'frozen', False):
+         icon_path = os.path.join(sys._MEIPASS, icon_name)
+    elif os.path.exists(icon_name):
+         icon_path = os.path.abspath(icon_name)
+
     try:
         import webview
         
-        # Determine icon path
-        icon_path = None
-        if getattr(sys, 'frozen', False):
-             icon_path = os.path.join(sys._MEIPASS, 'nexus-river-view-600x866.ico')
-        elif os.path.exists('nexus-river-view-600x866.ico'):
-             icon_path = os.path.abspath('nexus-river-view-600x866.ico')
-
-        # Create the window
         # Fix for taskbar icon grouping
         import ctypes
-        myappid = 'sharifulnrv.software.nexusriverview.1.0' # arbitrary string
+        myappid = 'sharifulnrv.software.nexusriverview.1.0'
         try:
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
         except:
             pass
 
         window = webview.create_window(
-            'Nexus River View', 
-            url, 
+            'Nexus River View - Starting...', 
+            loading_html, 
             width=1280, 
             height=800, 
             resizable=True
@@ -156,7 +165,11 @@ if __name__ == '__main__':
         
     except ImportError:
         print("pywebview not found. Launching in browser app mode...")
-        open_browser_fallback(url)
+        # For browser fallback, we still want to show the loading page first
+        import urllib.parse
+        loading_url = 'file:///' + urllib.parse.quote(loading_html.replace('\\', '/'))
+        open_browser_fallback(loading_url)
+        
         # Keep main thread alive
         try:
             while True:

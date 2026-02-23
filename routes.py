@@ -13,20 +13,60 @@ import string
 import json
 from telegram_utils import send_telegram_message, send_telegram_document
 
+import threading
+
+def run_in_background(target, *args, **kwargs):
+    """Universal helper to run a function in a background thread."""
+    thread = threading.Thread(target=target, args=args, kwargs=kwargs)
+    thread.daemon = True
+    thread.start()
+
+def background_sync_all(action_name="Data Update"):
+    """
+    Consolidates all high-latency tasks into a single background thread.
+    This prevents multiple threads from competing for SQLite locks or CPU.
+    """
+    from flask import current_app
+    app = current_app._get_current_object()
+    
+    def _worker():
+        with app.app_context():
+            # 1. Google Sheets Sync
+            try:
+                from sync_manager import sync_manager
+                sync_manager.sync_to_sheets()
+            except Exception as e:
+                print(f"Background Sheets sync failed: {e}")
+
+            # 2. Master Excel Sync
+            try:
+                sync_to_excel()
+            except Exception as e:
+                print(f"Background Excel sync failed: {e}")
+
+            # 3. Telegram DB Backup
+            try:
+                db_path = os.path.abspath(os.path.join(os.environ.get('NEXUS_DATA_PATH', '.'), 'nexus.db'))
+                if os.path.exists(db_path):
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    caption = f"Backup triggered by: {action_name}\nTime: {timestamp}"
+                    send_telegram_document(db_path, caption=caption)
+            except Exception as e:
+                print(f"Background Telegram backup failed: {e}")
+
+    thread = threading.Thread(target=_worker)
+    thread.daemon = True
+    thread.start()
+
+# For backward compatibility with existing calls, we redefine these to call the consolidated worker
+def trigger_sync():
+    background_sync_all("Google Sheets Sync")
+
+def trigger_excel_sync():
+    background_sync_all("Excel Sync")
+
 def backup_to_telegram(action_name="Database Update"):
-    """
-    Helper to send the current database to Telegram.
-    This should be called AFTER a successful commit.
-    """
-    try:
-        db_path = current_app.config.get('DATABASE_PATH')
-        if db_path and os.path.exists(db_path):
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            caption = f"Backup triggered by: {action_name}\nTime: {timestamp}"
-            send_telegram_document(db_path, caption=caption)
-    except Exception as e:
-        print(f"Backup failed: {e}")
-        # We don't want to break the user flow if backup fails, just log it.
+    background_sync_all(action_name)
 
 main = Blueprint('main', __name__)
 
@@ -146,7 +186,8 @@ def add_director():
             )
             db.session.add(new_director)
             db.session.commit()
-            sync_to_excel()
+            trigger_excel_sync()
+            trigger_sync()
             backup_to_telegram("Added Director: " + name)
             flash('Director added successfully!', 'success')
             return redirect(url_for('main.index'))
@@ -171,7 +212,8 @@ def edit_director(id):
         director.payment_history = request.form.get('payment_history')
         
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
+        trigger_sync()
         backup_to_telegram("Edited Director: " + director.name)
         flash('Director updated successfully!', 'success')
         return redirect(url_for('main.index'))
@@ -193,7 +235,8 @@ def delete_director(id):
         
     db.session.delete(director)
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Deleted Director: " + director.name)
     flash('Director and their customers removed!', 'info')
     return redirect(url_for('main.index'))
@@ -252,7 +295,8 @@ def add_customer():
         )
         db.session.add(new_customer)
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
+        trigger_sync()
         backup_to_telegram("Added Customer: " + name)
         flash('Customer added successfully!', 'success')
         return redirect(url_for('main.index'))
@@ -291,7 +335,8 @@ def edit_customer(id):
         customer.due_amount = customer.total_price - customer.total_paid
         
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
+        trigger_sync()
         backup_to_telegram("Edited Customer: " + customer.name)
         flash('Customer updated successfully!', 'success')
         return redirect(url_for('main.index'))
@@ -308,7 +353,8 @@ def delete_customer(id):
     db.session.delete(customer)
     db.session.commit()
     # Sync to Excel
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Deleted Customer")
     flash('Customer deleted!', 'success')
     return redirect(url_for('main.index'))
@@ -357,7 +403,8 @@ def manage_transactions(customer_id):
         
         db.session.add(new_tx)
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
+        trigger_sync()
         backup_to_telegram("Added Transaction for Customer: " + customer.name)
         flash('Transaction Added!', 'success')
         return redirect(url_for('main.manage_transactions', customer_id=customer_id))
@@ -386,7 +433,8 @@ def delete_transaction(id):
     
     db.session.delete(tx)
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Deleted Transaction")
     flash('Transaction Deleted!', 'warning')
     return redirect(url_for('main.manage_transactions', customer_id=customer_id))
@@ -436,7 +484,8 @@ def edit_transaction_details(id):
     customer.due_amount = customer.total_price - customer.total_paid
     
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Edited Transaction")
     flash('Transaction Updated!', 'success')
     return redirect(url_for('main.manage_transactions', customer_id=customer.id))
@@ -478,7 +527,8 @@ def manage_petty_cash():
         )
         db.session.add(new_entry)
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
+        trigger_sync()
         backup_to_telegram("Added Petty Cash: " + description)
         flash('Petty Cash Entry Added!', 'success')
         return redirect(url_for('main.manage_petty_cash'))
@@ -580,7 +630,8 @@ def delete_petty_cash(id):
     entry = PettyCash.query.get_or_404(id)
     db.session.delete(entry)
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Deleted Petty Cash")
     flash('Entry Deleted!', 'info')
     return redirect(url_for('main.manage_petty_cash'))
@@ -621,7 +672,8 @@ def edit_petty_cash(id):
             entry.images = ','.join(updated_images)
             
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
+    trigger_sync()
     backup_to_telegram("Edited Petty Cash")
     flash('Entry Updated Successfully!', 'success')
     return redirect(url_for('main.manage_petty_cash'))
@@ -858,7 +910,7 @@ def manage_banks():
         )
         db.session.add(new_bank)
         db.session.commit()
-        sync_to_excel()
+        trigger_excel_sync()
         backup_to_telegram("Added Bank: " + request.form.get('bank_name'))
         flash('Bank Account Added!', 'success')
         return redirect(url_for('main.manage_banks'))
@@ -890,7 +942,7 @@ def edit_bank(id):
     bank.status = request.form.get('status')
     
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
     backup_to_telegram("Edited Bank: " + bank.bank_name)
     flash('Bank Account Updated!', 'success')
     return redirect(url_for('main.manage_banks'))
@@ -904,7 +956,7 @@ def delete_bank(id):
     bank = Bank.query.get_or_404(id)
     db.session.delete(bank)
     db.session.commit()
-    sync_to_excel()
+    trigger_excel_sync()
     backup_to_telegram("Deleted Bank: " + bank.bank_name)
     flash('Bank Account Deleted!', 'warning')
     return redirect(url_for('main.manage_banks'))
@@ -934,6 +986,14 @@ def bank_ledger(id):
             debit = float(request.form.get('debit') or 0)
             credit = 0.0
         
+        # Convert YYYY-MM-DD input to DD-MM-YYYY storage
+        try:
+            date_obj = datetime.strptime(date, '%Y-%m-%d')
+            date = date_obj.strftime('%d-%m-%Y')
+        except ValueError:
+             # Already in format or invalid? keep as is
+             pass
+
         new_tx = BankTransaction(
             date=date,
             cheque_no=cheque_no,
@@ -952,7 +1012,7 @@ def bank_ledger(id):
         # Recompute Balances
         recompute_bank_balances(id)
         
-        sync_to_excel()
+        trigger_excel_sync()
         backup_to_telegram("Added Bank Ledger Tx")
         flash('Transaction Added to Ledger!', 'success')
         return redirect(url_for('main.bank_ledger', id=id))
@@ -960,16 +1020,16 @@ def bank_ledger(id):
     transactions = BankTransaction.query.filter_by(bank_id=id).all()
     
     # Sort in Python to handle Date Parsing correctly
-    # DB Date is String, format mostly YYYY-MM-DD or DD-MM-YYYY
+    # DB Date is String, format DD-MM-YYYY preferred
     def parse_tx_date(tx):
-        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+        for fmt in ('%d-%m-%Y', '%Y-%m-%d'):
             try:
                 return datetime.strptime(tx.date, fmt)
             except ValueError:
                 pass
         return datetime.min # Fallback
 
-    transactions.sort(key=lambda x: (parse_tx_date(x), x.id))
+    transactions.sort(key=lambda x: (parse_tx_date(x), x.id), reverse=True)
     
     # --- Date Filter Logic ---
     start_date_str = request.args.get('start_date')
@@ -1005,19 +1065,20 @@ def recompute_bank_balances(bank_id):
     """
     Recalculates the running balance for all transactions of a specific bank.
     Sorts by Date (asc) and then ID (asc).
-    Handles mixed date formats (YYYY-MM-DD vs DD-MM-YYYY).
+    Handles mixed date formats (DD-MM-YYYY vs YYYY-MM-DD).
     """
     transactions = BankTransaction.query.filter_by(bank_id=bank_id).all()
     
     def parse_date(date_str):
-        for fmt in ('%Y-%m-%d', '%d-%m-%Y'):
+        # Prioritize DD-MM-YYYY
+        for fmt in ('%d-%m-%Y', '%Y-%m-%d'):
             try:
                 return datetime.strptime(date_str, fmt)
             except ValueError:
                 pass
         return datetime.min
 
-    # Sort transactions
+    # Sort transactions (Oldest First for Calculation)
     transactions.sort(key=lambda x: (parse_date(x.date), x.id))
     
     running_balance = 0.0
@@ -1045,7 +1106,7 @@ def delete_bank_transaction(id):
     
     recompute_bank_balances(bank_id)
     
-    sync_to_excel()
+    trigger_excel_sync()
     backup_to_telegram("Deleted Bank Tx: " + (tx.narration or str(id)))
     flash('Transaction Deleted & Balances Recomputed!', 'warning')
     return redirect(url_for('main.bank_ledger', id=bank_id))
@@ -1081,7 +1142,7 @@ def edit_bank_transaction(id):
     
     recompute_bank_balances(bank_id)
     
-    sync_to_excel()
+    trigger_excel_sync()
     backup_to_telegram("Edited Bank Tx: " + (tx.narration or str(id)))
     flash('Transaction Updated & Balances Recomputed!', 'success')
     return redirect(url_for('main.bank_ledger', id=bank_id))
@@ -1159,3 +1220,40 @@ def restore_data():
             flash('Backup file not found.', 'danger')
             
     return redirect(url_for('main.settings'))
+
+@main.route('/sync', methods=['GET', 'POST'])
+def sync_resolution():
+    from sync_manager import sync_manager
+    mismatch_details = current_app.config.get('SYNC_MISMATCH')
+    
+    if not mismatch_details:
+        flash('No sync mismatch detected.', 'info')
+        return redirect(url_for('main.index'))
+
+    if request.method == 'POST':
+        choice = request.form.get('choice')
+        if choice == 'sheet_to_db':
+            success, msg = sync_manager.restore_db_from_sheets()
+            if success:
+                flash('Local database restored from Google Sheets!', 'success')
+                current_app.config['SYNC_MISMATCH'] = None
+            else:
+                flash(f'Sync failed: {msg}', 'danger')
+        elif choice == 'db_to_sheet':
+            success, msg = sync_manager.sync_to_sheets()
+            if success:
+                flash('Google Sheets updated with local data!', 'success')
+                current_app.config['SYNC_MISMATCH'] = None
+            else:
+                flash(f'Sync failed: {msg}', 'danger')
+        
+        return redirect(url_for('main.index'))
+
+    return render_template('sync_resolution.html', details=mismatch_details)
+
+@main.before_app_request
+def check_sync_mismatch():
+    # Only redirect to /sync if mismatch exists and it's not the /sync or static route
+    if current_app.config.get('SYNC_MISMATCH') and \
+       request.endpoint not in ['main.sync_resolution', 'main.uploaded_file', 'static']:
+        return redirect(url_for('main.sync_resolution'))

@@ -259,24 +259,8 @@ def sync_to_excel():
             print(f"Backup created: {backup_path}")
             log_debug(f"Backup created at: {backup_path}")
             
-            # Send to Telegram
-            log_debug("Initiating Telegram backup upload...")
-            if send_telegram_document(backup_path, caption=f"Auto-Backup: {backup_filename}"):
-                 log_debug("Excel backup sent to Telegram.")
-            else:
-                 log_debug("Failed to send Excel backup to Telegram.")
-
-            # Also send the live DB file
-            # DB is in DATA_FOLDER
-            db_path = os.path.join(data_folder, 'nexus.db')
-            if os.path.exists(db_path):
-                 log_debug(f"Sending DB backup: {db_path}")
-                 if send_telegram_document(db_path, caption=f"Live DB Backup: {timestamp}"):
-                     log_debug("DB backup sent to Telegram.")
-                 else:
-                     log_debug("Failed to send DB backup to Telegram.")
-            else:
-                 log_debug(f"DB file not found at {db_path}")
+            # REMOVED: Excel upload to Telegram as it is too slow for real-time saving
+            # Redundant since we send the DB file which contains everything.
             
     except Exception as e:
         print(f"Error syncing to Excel: {e}")
@@ -438,4 +422,162 @@ def restore_from_excel(file_path):
     except Exception as e:
         db.session.rollback()
         print(f"Restore failed: {e}")
+        return False, str(e)
+def restore_from_data_dict(data_dict):
+    """
+    Restores the database from a dictionary of lists of dictionaries.
+    """
+    try:
+        # Wipe Database
+        BankTransaction.query.delete()
+        Bank.query.delete()
+        PettyCash.query.delete()
+        Transaction.query.delete()
+        Customer.query.delete()
+        Director.query.delete()
+        db.session.commit()
+        
+        # Restore Directors
+        director_id_map = {} # Maps old_id (from sheet) to new_id (in DB)
+        for row in data_dict.get('director', []):
+            old_id = str(row.get('id'))
+            d = Director(
+                name=row['name'],
+                total_share=float(row['total_share'] or 0),
+                per_share_value=float(row['per_share_value'] or 0),
+                fair_cost=float(row['fair_cost'] or 0),
+                land_value_extra_share=float(row['land_value_extra_share'] or 0),
+                total_paid=float(row['total_paid'] or 0),
+                payment_history=str(row['payment_history']),
+                bank_name=str(row['bank_name']),
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(d)
+            db.session.flush()
+            director_id_map[old_id] = d.id
+            
+        # Restore Customers
+        customer_id_map = {}
+        for row in data_dict.get('customer', []):
+            old_id = str(row.get('id'))
+            old_director_id = str(row.get('director_id'))
+            # Get the new director ID from our map
+            new_director_id = director_id_map.get(old_director_id)
+            
+            if not new_director_id:
+                print(f"Warning: Could not find new director ID for old ID {old_director_id}")
+                # Fallback to the old ID if mapping fails (less safe but best effort)
+                new_director_id = int(old_director_id) if old_director_id.isdigit() else 1
+
+            c = Customer(
+                director_id=new_director_id,
+                customer_id=row['customer_id'],
+                name=row['name'],
+                phone=str(row['phone']),
+                plot_no=row['plot_no'],
+                total_price=float(row['total_price'] or 0),
+                down_payment=float(row['down_payment'] or 0),
+                monthly_installment=float(row['monthly_installment'] or 0),
+                total_paid=float(row['total_paid'] or 0),
+                due_amount=float(row['due_amount'] or 0),
+                father_name=row.get('father_name', ''),
+                mother_name=row.get('mother_name', ''),
+                dob=row.get('dob', ''),
+                religion=row.get('religion', ''),
+                profession=row.get('profession', ''),
+                nid_no=row.get('nid_no', ''),
+                present_address=row.get('present_address', ''),
+                permanent_address=row.get('permanent_address', ''),
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(c)
+            db.session.flush()
+            customer_id_map[old_id] = c.id
+
+        # Restore Transactions
+        for row in data_dict.get('transaction', []):
+            old_cust_id = str(row.get('customer_id'))
+            new_cust_id = customer_id_map.get(old_cust_id)
+            
+            if not new_cust_id:
+                new_cust_id = int(old_cust_id) if old_cust_id.isdigit() else 1
+
+            t = Transaction(
+                date=str(row['date']),
+                amount=float(row['amount'] or 0),
+                installment_type=row['installment_type'],
+                bank_name=str(row['bank_name']),
+                transaction_id=str(row['transaction_id']),
+                remarks=str(row['remarks']),
+                images=str(row['images']),
+                customer_id=new_cust_id,
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(t)
+
+        # Restore Petty Cash
+        for row in data_dict.get('petty_cash', []):
+            pc = PettyCash(
+                date=str(row['date']),
+                description=row['description'],
+                category=row['category'],
+                type=row['type'],
+                amount=float(row['amount'] or 0),
+                images=str(row['images']),
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(pc)
+
+        # Restore Banks
+        bank_id_map = {}
+        for row in data_dict.get('bank', []):
+            old_id = str(row.get('id'))
+            b = Bank(
+                bank_name=row['bank_name'],
+                branch=str(row['branch']),
+                account_holder_name=str(row['account_holder_name']),
+                joint_name=str(row['joint_name']),
+                fhp=str(row['fhp']),
+                address=str(row['address']),
+                city=str(row['city']),
+                phone=str(row['phone']),
+                customer_id=str(row['customer_id']),
+                account_no=str(row['account_no']),
+                prev_account_no=str(row['prev_account_no']),
+                account_type=str(row['account_type']),
+                currency=str(row['currency']),
+                status=str(row['status']),
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(b)
+            db.session.flush()
+            bank_id_map[old_id] = b.id
+
+        # Restore Bank Transactions
+        for row in data_dict.get('bank_transaction', []):
+            old_bank_id = str(row.get('bank_id'))
+            new_bank_id = bank_id_map.get(old_bank_id)
+            
+            if not new_bank_id:
+                new_bank_id = int(old_bank_id) if old_bank_id.isdigit() else 1
+
+            btx = BankTransaction(
+                date=str(row['date']),
+                cheque_no=str(row['cheque_no']),
+                ref_no=str(row['ref_no']),
+                narration=str(row['narration']),
+                transaction_details=str(row['transaction_details']),
+                debit=float(row['debit'] or 0),
+                credit=float(row['credit'] or 0),
+                balance=float(row['balance'] or 0),
+                bank_id=new_bank_id,
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+            )
+            db.session.add(btx)
+
+        db.session.commit()
+        return True, "Data successfully restored from sync (ID mapping applied)."
+    except Exception as e:
+        db.session.rollback()
+        print(f"Restore from dict failed: {e}")
         return False, str(e)

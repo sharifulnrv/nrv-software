@@ -26,7 +26,7 @@
         {% set current_balance = total_credit - total_debit %}
         <!-- Note: If using backend 'balance' field on last tx, we check that -->
         {% if transactions %}
-            {% set display_balance = transactions[-1].balance %}
+            {% set display_balance = transactions[0].balance %}
         {% else %}
             {% set display_balance = 0 %}
         {% endif %}

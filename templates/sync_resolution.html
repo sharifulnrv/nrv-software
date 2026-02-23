@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow">
+        <div class="card-header bg-warning text-dark">
+            <h3 class="mb-0">Data Synchronization Mismatch Detected</h3>
+        </div>
+        <div class="card-body">
+            <p class="lead">The application detected a mismatch between your local database and the Google Sheets data on startup.</p>
+            
+            <div class="alert alert-info">
+                <strong>Mismatch Details:</strong>
+                <ul class="mb-0">
+                    {% for detail in details %}
+                        <li>{{ detail }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <p>To ensure data integrity, please choose one of the following actions:</p>
+            
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-primary">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title text-primary">Priority: Google Sheets</h5>
+                                <p class="card-text">Wipe the local database and rebuild it from Google Sheets. Use this if you made changes directly on the Sheet or if your local database was lost.</p>
+                                <button type="submit" name="choice" value="sheet_to_db" class="btn btn-primary mt-auto">Use Google Sheets Data</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100 border-success">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title text-success">Priority: Local Data</h5>
+                                <p class="card-text">Update the Google Sheets with your local data. Use this if your local data is more up-to-date.</p>
+                                <button type="submit" name="choice" value="db_to_sheet" class="btn btn-success mt-auto">Use Local Data</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
