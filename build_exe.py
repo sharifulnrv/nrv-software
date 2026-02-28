@@ -27,6 +27,12 @@ args = [
     # Hidden imports
     '--hidden-import=engineio.async_drivers.threading',
     '--hidden-import=certifi', 
+    '--hidden-import=pandas',
+    '--hidden-import=openpyxl',
+    '--hidden-import=openpyxl.cell._writer',
+    '--hidden-import=webview',
+    '--hidden-import=tkinter',
+    '--hidden-import=filedialog',
     # Icon if available
     '--icon=nexus-river-view-600x866.ico',
     '--clean',

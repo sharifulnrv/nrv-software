@@ -13,6 +13,9 @@
                 <a href="{{ url_for('main.index') }}" class="btn btn-outline-secondary rounded-pill">
                     <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
                 </a>
+                <a href="{{ url_for('main.export_all_bank_data') }}" class="btn btn-outline-success rounded-pill" target="_blank">
+                    <i class="fas fa-file-excel me-2"></i>Export All Bank Data
+                </a>
                 <button class="btn btn-primary rounded-pill shadow-sm" onclick="openAddModal()">
                     <i class="fas fa-plus me-2"></i>Add Bank Account
                 </button>
@@ -72,7 +75,7 @@
                             </a>
                             <div class="d-flex gap-2">
                                     <button class="btn btn-sm btn-light text-primary rounded-circle me-1" 
-                                            onclick='openEditModal({{ bank.to_dict()|tojson }})' title="Edit">
+                                            onclick='openEditModal({{ bank.to_dict()|tojson|safe }})' title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </button>
                                     <a href="#" onclick="return confirmDelete(event, '{{ url_for('main.delete_bank', id=bank.id) }}')" class="btn btn-sm btn-light text-danger rounded-circle" title="Delete">

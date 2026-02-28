@@ -76,7 +76,10 @@ class SyncManager:
             'bank_transaction': BankTransaction
         }
         for name, model in models.items():
-            records = model.query.all()
+            if name == 'customer':
+                records = model.query.order_by(model.customer_id).all()
+            else:
+                records = model.query.all()
             data[name] = [self._model_to_dict(name, r) for r in records]
         return data
 

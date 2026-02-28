@@ -575,51 +575,59 @@ def export_petty_cash_report():
         
     entries = query.order_by(PettyCash.date.desc()).all()
     
-    data = []
-    for e in entries:
-        data.append({
-            'Date': e.date,
-            'Description': e.description,
-            'Category': e.category,
-            'Type': e.type,
-            'Income': e.amount if e.type == 'Income' else 0,
-            'Expense': e.amount if e.type == 'Expense' else 0,
-            'Images': e.images
-        })
+    try:
+        data = []
+        for e in entries:
+            data.append({
+                'Date': e.date,
+                'Description': e.description,
+                'Category': e.category,
+                'Type': e.type,
+                'Income': e.amount if e.type == 'Income' else 0,
+                'Expense': e.amount if e.type == 'Expense' else 0,
+                'Images': e.images
+            })
+            
+        df = pd.DataFrame(data)
         
-    df = pd.DataFrame(data)
-    
-    # Calculate totals for the report
-    total_income = df['Income'].sum() if not df.empty else 0
-    total_expense = df['Expense'].sum() if not df.empty else 0
-    
-    # Append Total Row
-    if not df.empty:
-        df.loc['Total'] = pd.Series(dtype='float64')
-        df.at['Total', 'Description'] = 'TOTAL'
-        df.at['Total', 'Income'] = total_income
-        df.at['Total', 'Expense'] = total_expense
-        df.at['Total', 'Category'] = f'Balance: {total_income - total_expense}'
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Petty_Cash_Report', index=False)
-        # Polish width
-        worksheet = writer.sheets['Petty_Cash_Report']
-        for column in worksheet.columns:
-            max_length = 0
-            column = [cell for cell in column]
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+        # Calculate totals for the report
+        total_income = df['Income'].sum() if not df.empty else 0
+        total_expense = df['Expense'].sum() if not df.empty else 0
+        
+        # Append Total Row
+        if not df.empty:
+            df.loc['Total'] = pd.Series(dtype='float64')
+            df.at['Total', 'Description'] = 'TOTAL'
+            df.at['Total', 'Income'] = total_income
+            df.at['Total', 'Expense'] = total_expense
+            df.at['Total', 'Category'] = f'Balance: {total_income - total_expense}'
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Petty_Cash_Report', index=False)
+            # Polish width
+            worksheet = writer.sheets['Petty_Cash_Report']
+            for column in worksheet.columns:
+                max_length = 0
+                column = [cell for cell in column]
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(cell.value)
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
 
-    output.seek(0)
-    return send_file(output, download_name="Petty_Cash_Report.xlsx", as_attachment=True)
+        output.seek(0)
+        return send_file(output, download_name="Petty_Cash_Report.xlsx", as_attachment=True)
+    except Exception as e:
+        from telegram_utils import log_debug
+        log_debug(f"Excel Export Error (Petty Cash): {e}")
+        import traceback
+        log_debug(traceback.format_exc())
+        flash(f"Error exporting Excel: {e}", "danger")
+        return redirect(url_for('main.manage_petty_cash'))
 
 @main.route('/delete_petty_cash/<int:id>', methods=['POST'])
 def delete_petty_cash(id):
@@ -686,52 +694,60 @@ def download_report():
     directors = Director.query.all()
     report_data = []
     
-    grand_total_collection = 0
-    grand_total_due = 0
-    
-    for d in directors:
-        d_collection = sum(c.total_paid for c in d.customers)
-        d_due = sum(c.due_amount for c in d.customers)
+    try:
+        grand_total_collection = 0
+        grand_total_due = 0
         
-        grand_total_collection += d_collection
-        grand_total_due += d_due
-        
+        for d in directors:
+            d_collection = sum(c.total_paid for c in d.customers)
+            d_due = sum(c.due_amount for c in d.customers)
+            
+            grand_total_collection += d_collection
+            grand_total_due += d_due
+            
+            report_data.append({
+                'Director': d.name,
+                'Total Collection': d_collection,
+                'Total Outstanding Dues': d_due
+            })
+            
+        # Append Grand Total
         report_data.append({
-            'Director': d.name,
-            'Total Collection': d_collection,
-            'Total Outstanding Dues': d_due
+            'Director': 'GRAND TOTAL',
+            'Total Collection': grand_total_collection,
+            'Total Outstanding Dues': grand_total_due
         })
         
-    # Append Grand Total
-    report_data.append({
-        'Director': 'GRAND TOTAL',
-        'Total Collection': grand_total_collection,
-        'Total Outstanding Dues': grand_total_due
-    })
-    
-    df = pd.DataFrame(report_data)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='Summary_Report', index=False)
+        df = pd.DataFrame(report_data)
         
-        # Polish width
-        worksheet = writer.sheets['Summary_Report']
-        for column in worksheet.columns:
-            max_length = 0
-            column = [cell for cell in column]
-            for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='Summary_Report', index=False)
+            
+            # Polish width
+            worksheet = writer.sheets['Summary_Report']
+            for column in worksheet.columns:
+                max_length = 0
+                column = [cell for cell in column]
+                for cell in column:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(cell.value)
+                    except:
+                        pass
+                adjusted_width = (max_length + 2)
+                worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
 
-    output.seek(0)
-    
-    return send_file(output, download_name="Summary_Report.xlsx", as_attachment=True)
+        output.seek(0)
+        
+        return send_file(output, download_name="Summary_Report.xlsx", as_attachment=True)
+    except Exception as e:
+        from telegram_utils import log_debug
+        log_debug(f"Excel Export Error (Summary Report): {e}")
+        import traceback
+        log_debug(traceback.format_exc())
+        flash(f"Error exporting Excel: {e}", "danger")
+        return redirect(url_for('main.index'))
 
 # --- Excel Helper ---
 def format_excel_width(writer, sheet_name):
@@ -754,80 +770,106 @@ def format_excel_width(writer, sheet_name):
 
 @main.route('/report/customers/all')
 def download_all_customers_report():
-    customers = Customer.query.join(Director).all()
-    
-    data = []
-    for c in customers:
-        data.append({
-            'Director Name': c.director.name,
-            'Customer ID': c.customer_id,
-            'Customer Name': c.name,
-            'Phone': c.phone,
-            'Father Name': c.father_name,
-            'Mother Name': c.mother_name,
-            'DOB': c.dob,
-            'Religion': c.religion,
-            'Profession': c.profession,
-            'NID No': c.nid_no,
-            'Present Address': c.present_address,
-            'Permanent Address': c.permanent_address,
-            'Plot No': c.plot_no,
-            'Total Price': c.total_price,
-            'Down Payment': c.down_payment,
-            'Monthly Installment': c.monthly_installment,
-            'Total Paid': c.total_paid,
-            'Due Amount': c.due_amount
-        })
+    from telegram_utils import log_debug
+    try:
+        customers = Customer.query.join(Director).order_by(Director.name, Customer.customer_id).all()
+        if not customers:
+            log_debug("WARNING: Customer.query.join(Director) returned 0 customers. Checking without join...")
+            customers = Customer.query.order_by(Customer.customer_id).all()
         
-    df = pd.DataFrame(data)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, sheet_name='All_Customers', index=False)
-        format_excel_width(writer, 'All_Customers')
+        log_debug(f"Export All: Found {len(customers)} customers.")
         
-    output.seek(0)
-    return send_file(output, download_name="All_Customers.xlsx", as_attachment=True)
+        # Check total counts
+        all_c = Customer.query.count()
+        all_d = Director.query.count()
+        log_debug(f"Total in DB: Customers={all_c}, Directors={all_d}")
+        data = []
+        for c in customers:
+            data.append({
+                'Director Name': c.director.name,
+                'Customer ID': c.customer_id,
+                'Customer Name': c.name,
+                'Phone': c.phone,
+                'Father Name': c.father_name,
+                'Mother Name': c.mother_name,
+                'DOB': c.dob,
+                'Religion': c.religion,
+                'Profession': c.profession,
+                'NID No': c.nid_no,
+                'Present Address': c.present_address,
+                'Permanent Address': c.permanent_address,
+                'Plot No': c.plot_no,
+                'Total Price': c.total_price,
+                'Down Payment': c.down_payment,
+                'Monthly Installment': c.monthly_installment,
+                'Total Paid': c.total_paid,
+                'Due Amount': c.due_amount
+            })
+            
+        df = pd.DataFrame(data)
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='All_Customers', index=False)
+            format_excel_width(writer, 'All_Customers')
+            
+        output.seek(0)
+        return send_file(output, download_name="All_Customers.xlsx", as_attachment=True)
+    except Exception as e:
+        from telegram_utils import log_debug
+        log_debug(f"Excel Export Error (All Customers): {e}")
+        import traceback
+        log_debug(traceback.format_exc())
+        flash(f"Error exporting Excel: {e}", "danger")
+        return redirect(url_for('main.index'))
 
 @main.route('/report/director/<int:id>/customers')
 def download_director_customers_report(id):
     director = Director.query.get_or_404(id)
     customers = director.customers
     
-    data = []
-    for c in customers:
-        data.append({
-            'Director Name': director.name,
-            'Customer ID': c.customer_id,
-            'Customer Name': c.name,
-            'Phone': c.phone,
-            'Father Name': c.father_name,
-            'Mother Name': c.mother_name,
-            'DOB': c.dob,
-            'Religion': c.religion,
-            'Profession': c.profession,
-            'NID No': c.nid_no,
-            'Present Address': c.present_address,
-            'Permanent Address': c.permanent_address,
-            'Plot No': c.plot_no,
-            'Total Price': c.total_price,
-            'Down Payment': c.down_payment,
-            'Monthly Installment': c.monthly_installment,
-            'Total Paid': c.total_paid,
-            'Due Amount': c.due_amount
-        })
+    try:
+        data = []
+        for c in customers:
+            data.append({
+                'Director Name': director.name,
+                'Customer ID': c.customer_id,
+                'Customer Name': c.name,
+                'Phone': c.phone,
+                'Father Name': c.father_name,
+                'Mother Name': c.mother_name,
+                'DOB': c.dob,
+                'Religion': c.religion,
+                'Profession': c.profession,
+                'NID No': c.nid_no,
+                'Present Address': c.present_address,
+                'Permanent Address': c.permanent_address,
+                'Plot No': c.plot_no,
+                'Total Price': c.total_price,
+                'Down Payment': c.down_payment,
+                'Monthly Installment': c.monthly_installment,
+                'Total Paid': c.total_paid,
+                'Due Amount': c.due_amount
+            })
+            
+        df = pd.DataFrame(data)
         
-    df = pd.DataFrame(data)
-    
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        sheet_name = 'Customers'
-        df.to_excel(writer, sheet_name=sheet_name, index=False)
-        format_excel_width(writer, sheet_name)
-        
-    output.seek(0)
-    filename = f"Director_{secure_filename(director.name)}_Customers.xlsx"
-    return send_file(output, download_name=filename, as_attachment=True)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            sheet_name = 'Customers'
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+            format_excel_width(writer, sheet_name)
+            
+        output.seek(0)
+        filename = f"Director_{secure_filename(director.name)}_Customers.xlsx"
+        return send_file(output, download_name=filename, as_attachment=True)
+    except Exception as e:
+        from telegram_utils import log_debug
+        log_debug(f"Excel Export Error (Director Customers): {e}")
+        import traceback
+        log_debug(traceback.format_exc())
+        flash(f"Error exporting Excel: {e}", "danger")
+        return redirect(url_for('main.index'))
 
 @main.route('/report/customer/<int:id>')
 def download_individual_customer_report(id):
@@ -1150,19 +1192,11 @@ def edit_bank_transaction(id):
 @main.route('/bank/<int:id>/export')
 def export_bank_ledger(id):
     bank = Bank.query.get_or_404(id)
-    transactions = BankTransaction.query.filter_by(bank_id=id).order_by(BankTransaction.date).all()
+    # Raw query: no sorting
+    transactions = BankTransaction.query.filter_by(bank_id=id).all()
     
-    data = []
-    for tx in transactions:
-        data.append({
-            'Date': tx.date,
-            'Cheque No': tx.cheque_no,
-            'Ref No': tx.ref_no,
-            'Narration': tx.narration,
-            'Debit': tx.debit,
-            'Credit': tx.credit,
-            'Balance': tx.balance
-        })
+    from sync_manager import sync_manager
+    data = [sync_manager._model_to_dict('bank_transaction', tx) for tx in transactions]
         
     df = pd.DataFrame(data)
     
@@ -1170,11 +1204,66 @@ def export_bank_ledger(id):
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         sheet_name = 'Ledger'
         df.to_excel(writer, sheet_name=sheet_name, index=False)
-        format_excel_width(writer, sheet_name)
+        # No formatting/auto-width as requested
         
+    safe_name = secure_filename(bank.bank_name) or "Bank"
+    filename = f"Bank_Ledger_{safe_name}.xlsx"
+    
+    # Optional: Save a copy to the data directory for GUI users
+    try:
+        data_dir = current_app.config.get('DATA_FOLDER', '.')
+        disk_path = os.path.join(data_dir, filename)
+        with open(disk_path, 'wb') as f:
+            f.write(output.getvalue())
+        from telegram_utils import log_debug
+        log_debug(f"Bank Ledger saved to disk: {disk_path}")
+    except Exception as e:
+        print(f"Failed to save disk backup: {e}")
+
     output.seek(0)
-    filename = f"Bank_Ledger_{secure_filename(bank.bank_name)}.xlsx"
-    return send_file(output, download_name=filename, as_attachment=True)
+    return send_file(
+        output, 
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        download_name=filename, 
+        as_attachment=True
+    )
+
+@main.route('/report/bank/all')
+def export_all_bank_data():
+    from sync_manager import sync_manager
+    banks = Bank.query.all()
+    bank_transactions = BankTransaction.query.all()
+
+    banks_data = [sync_manager._model_to_dict('bank', b) for b in banks]
+    tx_data = [sync_manager._model_to_dict('bank_transaction', tx) for tx in bank_transactions]
+
+    df_banks = pd.DataFrame(banks_data)
+    df_tx = pd.DataFrame(tx_data)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df_banks.to_excel(writer, sheet_name='Banks', index=False)
+        df_tx.to_excel(writer, sheet_name='Bank_Transactions', index=False)
+
+    # Optional: Save a copy to the data directory
+    filename = "All_Bank_Data_Raw.xlsx"
+    try:
+        data_dir = current_app.config.get('DATA_FOLDER', '.')
+        disk_path = os.path.join(data_dir, filename)
+        with open(disk_path, 'wb') as f:
+            f.write(output.getvalue())
+        from telegram_utils import log_debug
+        log_debug(f"All Bank Data saved to disk: {disk_path}")
+    except Exception as e:
+        print(f"Failed to save disk backup: {e}")
+
+    output.seek(0)
+    return send_file(
+        output, 
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        download_name=filename, 
+        as_attachment=True
+    )
 
 # --- Settings & Restore ---
 @main.route('/settings')

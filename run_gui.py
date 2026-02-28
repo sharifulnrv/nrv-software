@@ -8,6 +8,8 @@ import json
 import socket
 import tkinter as tk
 from tkinter import filedialog
+import pandas
+import openpyxl
 from app import create_app
 
 # Global flag to signal the server is ready

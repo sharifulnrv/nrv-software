@@ -18,7 +18,6 @@ class Director(db.Model):
     payment_history = db.Column(db.Text) # Date & Deposit text blob
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    customers = db.relationship('Customer', backref='director', lazy=True)
 
 class Customer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,6 +45,8 @@ class Customer(db.Model):
     present_address = db.Column(db.String(255))
     permanent_address = db.Column(db.String(255))
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+Director.customers = db.relationship('Customer', backref='director', lazy=True, order_by=Customer.customer_id)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)

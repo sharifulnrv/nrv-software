@@ -62,7 +62,7 @@ def sync_to_excel():
         pass
 
     # Refined Query
-    all_customers = Customer.query.all()
+    all_customers = Customer.query.outerjoin(Director).order_by(Director.name, Customer.customer_id).all()
     
     export_list = []
     for c in all_customers:
@@ -87,8 +87,8 @@ def sync_to_excel():
         ])
     else:
         df = pd.DataFrame(export_list)
-        # Smart Sorting: Sort by Director Name, then Customer Name
-        df = df.sort_values(by=['Director Name', 'Customer Name'])
+        # Smart Sorting: Sort by Director Name, then Customer ID
+        df = df.sort_values(by=['Director Name', 'Customer ID'])
 
     # --- Director Summary Data ---
     all_directors = Director.query.all()
