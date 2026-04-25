@@ -230,72 +230,85 @@ def uploaded_file(filename):
 @login_required
 def index():
     try:
-        directors = Director.query.all()
-        customers = Customer.query.all()
-        from models import Installment
-        total_milestone_rate = sum(inst.amount_per_share for inst in Installment.query.all())
-        total_director_shares = sum(d.total_share for d in directors)
+        from sqlalchemy import func
+        from datetime import datetime, date, timedelta
         
+        # 1. Global Totals (Aggregated in DB)
+        total_milestone_rate = db.session.query(func.sum(Installment.amount_per_share)).scalar() or 0.0
+        total_director_shares = db.session.query(func.sum(Director.total_share)).scalar() or 0.0
         grand_total_payable = total_director_shares * total_milestone_rate
-        grand_total_paid = sum(c.total_paid for c in customers)
-        grand_total_due = grand_total_payable - grand_total_paid
-        grand_total_outstanding = grand_total_due # or keep as is if outstanding means something else
-            
-        total_bank_balance = sum(tx.credit - tx.debit for tx in BankTransaction.query.all())
         
-        cash_income = sum(pc.amount for pc in PettyCash.query.filter_by(type='Income').all())
-        cash_expense = sum(pc.amount for pc in PettyCash.query.filter_by(type='Expense').all())
+        grand_total_paid = db.session.query(func.sum(Customer.total_paid)).scalar() or 0.0
+        grand_total_due = grand_total_payable - grand_total_paid
+        grand_total_outstanding = grand_total_due
+            
+        # 2. Bank and Cash Balances (Aggregated in DB)
+        bank_sums = db.session.query(
+            func.sum(BankTransaction.credit), 
+            func.sum(BankTransaction.debit)
+        ).first()
+        total_bank_balance = (bank_sums[0] or 0.0) - (bank_sums[1] or 0.0)
+        
+        cash_income = db.session.query(func.sum(PettyCash.amount)).filter_by(type='Income').scalar() or 0.0
+        cash_expense = db.session.query(func.sum(PettyCash.amount)).filter_by(type='Expense').scalar() or 0.0
         cash_in_hand = cash_income - cash_expense
 
-        # Store today_todos safely
-        from datetime import datetime
+        # 3. Today's Todos
         today_str = datetime.now().strftime('%Y-%m-%d')
-        today_todos = []
-        try:
-            today_todos = Todo.query.filter_by(
-                user_id=current_user.id,
-                due_date=today_str,
-                is_completed=False
-            ).all()
-        except Exception as todo_err:
-            print(f"Error fetching todos on index: {todo_err}")
+        today_todos = Todo.query.filter_by(
+            user_id=current_user.id,
+            due_date=today_str,
+            is_completed=False
+        ).all()
 
-        # Chart Data (Last 6 Months)
+        # 4. Chart Data Optimization (Windowed Fetching)
+        import calendar
         from collections import defaultdict
         income_by_month = defaultdict(float)
         expense_by_month = defaultdict(float)
         
-        def get_month_key(date_str):
-            if not date_str: return None
-            for fmt in ('%d-%m-%Y', '%Y-%m-%d'):
-                try:
-                    return datetime.strptime(date_str, fmt).strftime('%Y-%m')
-                except ValueError:
-                    pass
+        # Calculate start range (6 months ago)
+        # We fetch slightly more to be safe with timezone/boundary records
+        start_range = (date.today().replace(day=1) - timedelta(days=210))
+        start_date_iso = start_range.strftime('%Y-%m-%d')
+        start_date_dmy = start_range.strftime('%d-%m-%Y')
+
+        def parse_to_month_key(d):
+            if not d or len(d) < 10: return None
+            if d[4] == '-': return d[:7] # YYYY-MM
+            if d[2] == '-': return f"{d[6:10]}-{d[3:5]}" # DD-MM-YYYY
             return None
 
-        # 1. Customer Transactions (Income)
-        for tx in Transaction.query.all():
-            m = get_month_key(tx.date)
-            if m: income_by_month[m] += tx.amount
+        # Fetch only necessary records for the chart
+        # Customer Transactions
+        recent_txs = Transaction.query.filter(
+            (Transaction.date >= start_date_iso) | (Transaction.date.like(f"%{start_range.year}"))
+        ).all()
+        for tx in recent_txs:
+            m = parse_to_month_key(tx.date)
+            if m: income_by_month[m] += tx.amount or 0.0
             
-        # 2. Bank Transactions
-        for tx in BankTransaction.query.all():
-            m = get_month_key(tx.date)
+        # Bank Transactions
+        recent_bank = BankTransaction.query.filter(
+            (BankTransaction.date >= start_date_iso) | (BankTransaction.date.like(f"%{start_range.year}"))
+        ).all()
+        for tx in recent_bank:
+            m = parse_to_month_key(tx.date)
             if m:
-                income_by_month[m] += tx.credit
-                expense_by_month[m] += tx.debit
+                income_by_month[m] += tx.credit or 0.0
+                expense_by_month[m] += tx.debit or 0.0
                 
-        # 3. Petty Cash
-        for pc in PettyCash.query.all():
-            m = get_month_key(pc.date)
+        # Petty Cash
+        recent_pc = PettyCash.query.filter(
+            (PettyCash.date >= start_date_iso) | (PettyCash.date.like(f"%{start_range.year}"))
+        ).all()
+        for pc in recent_pc:
+            m = parse_to_month_key(pc.date)
             if m:
-                if pc.type == 'Income': income_by_month[m] += pc.amount
-                else: expense_by_month[m] += pc.amount
+                if pc.type == 'Income': income_by_month[m] += pc.amount or 0.0
+                else: expense_by_month[m] += pc.amount or 0.0
 
-        # Prepare labels and values for the last 6 months
-        import calendar
-        from datetime import date
+        # Build chart series for the last 6 months
         chart_labels = []
         chart_income = []
         chart_expense = []
@@ -306,17 +319,20 @@ def index():
             chart_labels.insert(0, calendar.month_name[current_date.month][:3] + " " + str(current_date.year)[2:])
             chart_income.insert(0, income_by_month[m_key])
             chart_expense.insert(0, expense_by_month[m_key])
-            # Move to previous month
+            # Prev month
             if current_date.month == 1:
                 current_date = current_date.replace(year=current_date.year - 1, month=12)
             else:
                 current_date = current_date.replace(month=current_date.month - 1)
 
+        # 5. Party Totals (Aggregated as much as possible)
+        # Note: current_balance is a hybrid property or calculated column in some models, 
+        # but here we'll do a simple list sum as Party table is usually small.
         parties = Party.query.all()
-        total_party_due = sum(p.current_balance for p in parties if p.current_balance > 0)
-        total_party_advance = abs(sum(p.current_balance for p in parties if p.current_balance < 0))
+        total_party_due = sum(p.current_balance for p in parties if (p.current_balance or 0) > 0)
+        total_party_advance = abs(sum(p.current_balance for p in parties if (p.current_balance or 0) < 0))
 
-        return render_template('index.html', directors=directors, 
+        return render_template('index.html', 
                              grand_total_payable=grand_total_payable, 
                              grand_total_paid=grand_total_paid, 
                              grand_total_due=grand_total_due,
@@ -332,7 +348,9 @@ def index():
                              today_todos=today_todos,
                              sync_mismatch=current_app.config.get('SYNC_MISMATCH'))
     except Exception as e:
-        print(f"CRITICAL ERROR in index view: {e}")
+        from telegram_utils import log_debug
+        log_debug(f"CRITICAL ERROR in optimized index view: {e}")
+        return "Internal Dashboard Error. Please check logs.", 500
         return render_template('error.html', error=str(e), path='/'), 500
 
 def verify_password():
