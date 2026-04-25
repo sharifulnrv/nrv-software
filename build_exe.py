@@ -4,10 +4,14 @@ import shutil
 import certifi
 
 # Clean up previous build
-if os.path.exists('dist'):
-    shutil.rmtree('dist')
-if os.path.exists('build'):
-    shutil.rmtree('build')
+try:
+    if os.path.exists('dist'):
+        shutil.rmtree('dist')
+    if os.path.exists('build'):
+        shutil.rmtree('build')
+except Exception as e:
+    print(f"Warning: Could not fully clean up dist/build folders. Error: {e}")
+    print("If this is a PermissionError, please ensure NexusRiverView is not running.")
 
 import sys
 import tkinter
@@ -37,9 +41,7 @@ args = [
     '--noconsole',
     '--add-data=templates;templates',
     '--add-data=static;static',
-    '--add-data=admin_config.json;.',
     '--add-data=.env;.',
-    '--add-data=credentials.json;.',
     '--add-data=nexus-river-view-600x866.ico;.', 
     f'--add-data={cert_path};certifi',
     # Add TCL/TK libraries explicitly

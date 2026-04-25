@@ -849,24 +849,54 @@ def export_party_ledger_to_excel(party_id):
 def generate_voucher_number(v_type):
     """
     Generates a unique voucher number based on type.
-    Debit Voucher: DV1, DV2, ...
-    Credit Voucher: CV1, CV2, ...
+    Finds the maximum numeric suffix to avoid collisions even if records are deleted.
     """
     from models import Voucher
+    import re
     prefix = "DV" if v_type == "Debit" else "CV"
     
-    # Get all vouchers of this type and find the max number
+    # Get all vouchers of this type
     vouchers = Voucher.query.filter(Voucher.type == v_type).all()
-    count = len(vouchers)
-    new_num = count + 1
     
+    max_num = 0
+    pattern = re.compile(rf"^{prefix}(\d+)$")
+    
+    for v in vouchers:
+        match = pattern.match(v.voucher_no or "")
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+                
+    new_num = max_num + 1
+    
+    # Fallback safety: ensure it's truly unique
+    while Voucher.query.filter_by(voucher_no=f"{prefix}{new_num}").first():
+        new_num += 1
+        
     return f"{prefix}{new_num}"
 
 def generate_contra_number():
+    """Generates a unique contra number based on maximum numeric suffix."""
     from models import ContraEntry
-    # Get all contra entries and find the next number
-    count = ContraEntry.query.count()
-    new_num = count + 1
+    import re
+    entries = ContraEntry.query.all()
+    
+    max_num = 0
+    pattern = re.compile(r"^CN(\d+)$")
+    
+    for e in entries:
+        match = pattern.match(e.contra_no or "")
+        if match:
+            num = int(match.group(1))
+            if num > max_num:
+                max_num = num
+                
+    new_num = max_num + 1
+    
+    while ContraEntry.query.filter_by(contra_no=f"CN{new_num}").first():
+        new_num += 1
+        
     return f"CN{new_num}"
 
 def process_voucher_financials(voucher_id, action='add'):
