@@ -101,13 +101,6 @@ def background_sync_all(action_name="Data Update"):
     
     global _last_sync_time
     
-    # --- Performance Optimization ---
-    # Check if sync is enabled globally via DB
-    from logic import get_system_setting
-    sync_enabled = get_system_setting('CLOUD_SYNC_ENABLED', 'True') == 'True'
-    if not sync_enabled and "Force" not in action_name:
-        return
-
     # Throttling Logic: Only sync if enough time has passed, or if forced (though we use action_name to distinguish)
     now = time.time()
     is_manual = "Manual" in action_name or "Force" in action_name
@@ -116,15 +109,19 @@ def background_sync_all(action_name="Data Update"):
         return
 
     if not _global_sync_lock.acquire(blocking=False):
-        from telegram_utils import log_debug
-        log_debug(f"[{action_name}] Sync skipped: A sync is already in progress.")
+        return
         return
         
     def sync_task(app_obj):
-        global _last_sync_time
-        try:
-            from sync_manager import sync_manager
+            global _last_sync_time
+            from logic import get_system_setting
             from telegram_utils import log_debug
+            
+            # --- Performance Optimization: Check toggle inside thread ---
+            sync_enabled = get_system_setting('CLOUD_SYNC_ENABLED', 'True') == 'True'
+            if not sync_enabled and "Force" not in action_name:
+                return
+
             log_debug(f"Starting Background Tasks due to: {action_name}")
             
             # Record start time for throttling
@@ -381,7 +378,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
-            backup_to_telegram(f"User Login: {user.username}")
+            # Removed backup_to_telegram from login to prevent DB deadlock on redirect
             return redirect(url_for('main.index'))
         else:
             flash('Invalid username or password', 'danger')
