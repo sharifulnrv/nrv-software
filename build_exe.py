@@ -66,10 +66,9 @@ os.environ['TK_LIBRARY'] = tk_lib
 print("Building EXE with arguments:", args)
 PyInstaller.__main__.run(args)
 
-# Post-build: Copy nexus.db to dist folder if it exists in root
-db_path = 'nexus.db'
-if os.path.exists(db_path):
-    shutil.copy2(db_path, os.path.join('dist', 'nexus.db'))
-    print(f"Copied {db_path} to dist/ for immediate use.")
+# Post-build: The application now handles its own data path via run_gui.py 
+# (either from .env or user selection saved in APPDATA). 
+# We don't copy a local DB to dist/ to encourage using the external data folder.
 
-print("Build complete. detailed logs in build/ and output in dist/")
+print("Build complete. Please ensure C:\\NRV_2 exists or the EXE will prompt for a folder on first run.")
+print("Detailed logs in build/ and output in dist/")

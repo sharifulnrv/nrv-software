@@ -78,43 +78,38 @@ def launch_app_window(url):
         webbrowser.open(url)
 
 if __name__ == '__main__':
-    # 0. Load .env first to respect any pre-configured paths
+    # 0. Load .env
     from dotenv import load_dotenv
     load_dotenv()
     
-    # 1. Setup Data Path
-    # PRIORITY 1: Check environment variable from .env
-    data_path = os.environ.get('NEXUS_DATA_PATH')
+    # 1. Setup Data Path with refined priorities:
+    # Priority 1: Persistent config from APPDATA
+    launcher_config = get_launcher_config()
+    data_path = launcher_config.get('data_path')
     
-    if not data_path or data_path == '.' or not os.path.isabs(data_path):
-        # Resolve relative paths relative to this script
-        if data_path == '.' or not data_path:
-            data_path = os.path.dirname(os.path.abspath(__file__))
-            
-    # PRIORITY 2: Check if current data_path is actually valid, otherwise fallback
-    if not os.path.exists(data_path):
-        # Fallback to C:\NRV or launcher config
-        default_nrv_path = r"C:\NRV"
-        config = get_launcher_config()
+    # Priority 2: Check .env if no persistent config
+    if not data_path or not os.path.exists(data_path):
+        data_path = os.environ.get('NEXUS_DATA_PATH')
+        
+    # Priority 3: Prompt user if .env is missing/relative or invalid
+    if not data_path or data_path == '.' or not os.path.isabs(data_path) or not os.path.exists(data_path):
+        # Determine fallback default
+        default_nrv_path = r"C:\NRV_2" # Updated to match user request
         
         if os.path.exists(default_nrv_path):
             data_path = default_nrv_path
         else:
-            data_path = config.get('data_path')
+            # Last resort: ask the user
+            print("No valid data path found. Please select a folder.")
+            data_path = select_data_folder()
             
-        if not data_path or not os.path.exists(data_path):
-            try:
-                os.makedirs(default_nrv_path, exist_ok=True)
-                data_path = default_nrv_path
-            except:
-                data_path = select_data_folder()
-                
-        if not data_path:
-            sys.exit()
+    if not data_path:
+        print("Error: No data folder selected. Exiting.")
+        sys.exit(1)
             
-    config = get_launcher_config()
-    config['data_path'] = data_path
-    save_launcher_config(config)
+    # Save the selected path for next time
+    launcher_config['data_path'] = data_path
+    save_launcher_config(launcher_config)
 
     os.environ['NEXUS_DATA_PATH'] = data_path
     print(f"Using Data Path: {data_path}")
