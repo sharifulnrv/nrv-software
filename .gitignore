@@ -1,12 +1,8 @@
 # Environment & secrets
 .env
-admin_config.json
+
 credentials.json
 
-# Databases
-*.db
-*.db-shm
-*.db-wal
 
 # Python
 __pycache__/
@@ -21,7 +17,7 @@ build/
 # Uploads & data
 uploads/
 C:/NRV/
-nexus_backup_*.db
+
 
 # Logs
 *.log

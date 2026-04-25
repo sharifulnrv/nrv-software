@@ -16,6 +16,7 @@ import calendar
 from telegram_utils import send_telegram_message, send_telegram_document
 
 import threading
+import time
 
 def run_in_background(target, app, *args, **kwargs):
     """Universal helper to run a function in a background thread."""

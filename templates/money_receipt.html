@@ -258,14 +258,28 @@
             </div>
         </div>
 
-        <div class="footer">
-            <div class="amount-box">
-                ৳ {{ "{:,.2f}".format(tx.amount) }}
+        <div class="footer" style="display: block; margin-top: 50px;">
+            <div style="margin-bottom: 40px;">
+                <div class="amount-box">
+                    ৳ {{ "{:,.2f}".format(tx.amount) }}
+                </div>
             </div>
             
-            <div class="signature-area">
-                <div class="signature-line"></div>
-                <div class="signature-label">Authorized Signature</div>
+            <div class="signatures-row" style="display: flex; justify-content: space-between; align-items: flex-end; width: 100%;">
+                <div class="signature-area" style="width: 180px; text-align: center;">
+                    <div class="signature-line" style="border-top: 1px solid var(--text-dark); margin-bottom: 8px;"></div>
+                    <div class="signature-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Receiver Signature</div>
+                </div>
+                
+                <div class="signature-area" style="width: 180px; text-align: center;">
+                    <div class="signature-line" style="border-top: 1px solid var(--text-dark); margin-bottom: 8px;"></div>
+                    <div class="signature-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Accountant Signature</div>
+                </div>
+
+                <div class="signature-area" style="width: 180px; text-align: center;">
+                    <div class="signature-line" style="border-top: 1px solid var(--text-dark); margin-bottom: 8px;"></div>
+                    <div class="signature-label" style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Authorized Signature</div>
+                </div>
             </div>
         </div>
 
