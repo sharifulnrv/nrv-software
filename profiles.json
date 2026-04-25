@@ -1,20 +1,10 @@
 {
-    "active_profile": "shopnobilash",
+    "active_profile": "default",
     "profiles": {
         "default": {
             "name": "Nexus River View",
             "db_name": "nexus.db",
             "sheet_id": "1Uapf1c4wDZ4hGfa1bqSbRjF45VodFv2-jtzgLL4VDq0"
-        },
-        "test1": {
-            "name": "test1",
-            "db_name": "test1.db",
-            "sheet_id": ""
-        },
-        "shopnobilash": {
-            "name": "ShopnoBilash",
-            "db_name": "shopnobilash.db",
-            "sheet_id": "12EvfR0SResxmfyF4eKh-vJsu0F4pUYGAeOY8eJIiB_A"
         }
     }
 }

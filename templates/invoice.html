@@ -65,7 +65,7 @@
             <div class="mb-5 page-break-inside-avoid">
                 <h6 class="text-uppercase text-muted small fw-bold border-bottom pb-2 mb-3">Attached Proof / Evidence</h6>
                 <div class="row g-3">
-                    {% for img in entry.images.split(',') %}
+                    {% for img in entry.images.split(',') if img %}
                         <div class="col-md-6">
                             {% if img.lower().endswith('.pdf') %}
                                 <div class="border rounded p-3 text-center bg-light">

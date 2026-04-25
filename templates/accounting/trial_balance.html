@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .report-container {
+        padding: 3rem 0;
+        animation: fadeIn 0.8s ease-out;
+    }
+    .report-card {
+        background: white;
+        border-radius: 1.5rem;
+        border: none;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+        overflow: hidden;
+    }
+    .report-header {
+        background: #f8fafc;
+        padding: 3rem;
+        border-bottom: 2px solid #f1f5f9;
+        text-align: center;
+    }
+    .report-table thead th {
+        background: #ffffff;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.1em;
+        padding: 1.25rem 2rem;
+        border-bottom: 2px solid #f1f5f9;
+    }
+    .report-table td {
+        padding: 1.25rem 2rem;
+        border-bottom: 1px solid #f8fafc;
+        font-size: 0.95rem;
+    }
+    .total-row {
+        background: #f8fafc;
+        font-weight: 800;
+        color: #1e293b;
+    }
+    .total-row td {
+        border-top: 2px solid #e2e8f0;
+        padding: 1.5rem 2rem;
+    }
+    .status-banner {
+        padding: 1.25rem;
+        border-radius: 1rem;
+        margin-top: 2rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+    .status-success { background: #d1fae5; color: #065f46; }
+    .status-error { background: #fee2e2; color: #991b1b; }
+
+    @media print {
+        .d-print-none { display: none !important; }
+        .report-card { box-shadow: none; border: 1px solid #e2e8f0; }
+        body { background: white !important; }
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container report-container">
+    <div class="d-flex justify-content-between align-items-center mb-5 d-print-none">
+        <div>
+            <h1 class="fw-bold h2 mb-1">Trial Balance</h1>
+            <p class="text-muted mb-0">Verifying that total Debits match total Credits across all ledgers.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('main.accounting_dashboard') }}" class="btn btn-light border rounded-pill px-4">
+                Dashboard
+            </a>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Report
+            </button>
+        </div>
+    </div>
+
+    <div class="report-card">
+        <div class="report-header">
+            <h2 class="fw-bold text-dark mb-1">{{ global_company_name or 'Nexus River View' }}</h2>
+            <h4 class="text-secondary fw-medium mb-3">Trial Balance Report</h4>
+            <div class="d-flex justify-content-center gap-3">
+                <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">As of {{ now_datetime }}</span>
+                <span class="badge bg-primary px-3 py-2 rounded-pill">Unadjusted</span>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table report-table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 150px;">Account Code</th>
+                        <th>Account Description</th>
+                        <th class="text-end" style="width: 200px;">Debit (DR)</th>
+                        <th class="text-end" style="width: 200px;">Credit (CR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set total_debit = namespace(val=0) %}
+                    {% set total_credit = namespace(val=0) %}
+                    
+                    {% for row in results %}
+                    {% if row.debit or row.credit %}
+                    <tr>
+                        <td class="fw-mono text-primary fw-bold">{{ row.code }}</td>
+                        <td class="fw-medium text-slate-700">{{ row.name }}</td>
+                        <td class="text-end fw-bold {{ 'text-dark' if row.debit else 'text-muted opacity-25' }}">
+                            {% if row.debit %}৳ {{ "{:,.2f}".format(row.debit) }}{% else %}0.00{% endif %}
+                        </td>
+                        <td class="text-end fw-bold {{ 'text-dark' if row.credit else 'text-muted opacity-25' }}">
+                            {% if row.credit %}৳ {{ "{:,.2f}".format(row.credit) }}{% else %}0.00{% endif %}
+                        </td>
+                    </tr>
+                    {% set total_debit.val = total_debit.val + (row.debit or 0.0) %}
+                    {% set total_credit.val = total_credit.val + (row.credit or 0.0) %}
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="total-row">
+                        <td colspan="2" class="text-center">AGGREGATE TOTALS</td>
+                        <td class="text-end text-success">৳ {{ "{:,.2f}".format(total_debit.val) }}</td>
+                        <td class="text-end text-danger">৳ {{ "{:,.2f}".format(total_credit.val) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    {% if (total_debit.val - total_credit.val)|abs < 0.01 %}
+    <div class="status-banner status-success shadow-sm">
+        <i class="fas fa-check-circle fa-lg"></i>
+        <span>Balanced: The ledger is in thermodynamic equilibrium. No discrepancies detected.</span>
+    </div>
+    {% else %}
+    <div class="status-banner status-error shadow-sm">
+        <i class="fas fa-exclamation-triangle fa-lg"></i>
+        <span>Discrepancy: Ledger is out of balance by ৳ {{ "{:,.2f}".format(total_debit.val - total_credit.val) }}. Check unposted journal entries.</span>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

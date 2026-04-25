@@ -113,7 +113,7 @@
                                         <td>
                                             {% if entry.images %}
                                             <div>
-                                                {% for img in entry.images.split(',') %}
+                                                {% for img in entry.images.split(',') if img %}
                                                     {% if img.lower().endswith('.pdf') %}
                                                         <a href="{{ url_for('static', filename='uploads/' + img) }}" target="_blank" class="text-danger me-1 fs-5" title="View PDF"><i class="fas fa-file-pdf"></i></a>
                                                     {% elif img.lower().endswith('.doc') or img.lower().endswith('.docx') %}

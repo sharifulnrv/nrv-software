@@ -25,10 +25,10 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <!-- Search Bar in Navbar -->
-                <div class="ms-auto me-auto px-lg-4 pb-2 pb-lg-0 w-100" style="max-width: 450px;">
-                    <div class="input-group input-group-sm rounded-pill overflow-hidden border">
+                <div class="flex-grow-1 px-lg-4 pb-2 pb-lg-0" style="max-width: 400px; min-width: 150px;">
+                    <div class="input-group input-group-sm rounded-pill overflow-hidden border bg-white">
                         <span class="input-group-text bg-white border-0 ps-3"><i class="fas fa-search text-muted"></i></span>
-                        <input type="text" class="form-control border-0" id="searchBar" placeholder="Search customers...">
+                        <input type="text" class="form-control border-0" id="searchBar" placeholder="Search...">
                     </div>
                 </div>
 
@@ -90,6 +90,9 @@
                         <a class="nav-link d-flex flex-column align-items-center justify-content-center text-nowrap px-2" href="{{ url_for('main.reports_dashboard') }}" title="Reports"><i class="fas fa-chart-line mb-1"></i><span style="font-size: 0.7rem;">Reports</span></a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link d-flex flex-column align-items-center justify-content-center text-nowrap px-2" href="{{ url_for('main.accounting_dashboard') }}" title="Accounting"><i class="fas fa-calculator mb-1 text-info"></i><span style="font-size: 0.7rem;">Accounting</span></a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link d-flex flex-column align-items-center justify-content-center text-nowrap px-2" href="{{ url_for('main.manage_todos') }}" title="Tasks"><i class="fas fa-tasks mb-1 text-primary"></i><span style="font-size: 0.7rem;">Tasks</span></a>
                     </li>
                     <li class="nav-item">
@@ -107,6 +110,11 @@
                     <li class="nav-item ms-2">
                         <a href="{{ url_for('main.change_password_request') }}" class="nav-link p-0" title="Change Password">
                             <i class="fas fa-key text-warning"></i>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ url_for('main.manual_backup') }}" class="nav-link p-0" title="Backup Database to Telegram">
+                            <i class="fas fa-cloud-upload-alt text-info"></i>
                         </a>
                     </li>
                     <li class="nav-item">

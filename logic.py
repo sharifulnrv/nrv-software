@@ -4,7 +4,7 @@ from models import Director, Customer, PettyCash, Transaction, Bank, BankTransac
 import os
 import shutil
 import io
-from datetime import datetime
+from datetime import datetime, timezone
 from database import db
 from telegram_utils import send_telegram_document, log_debug
 
@@ -275,7 +275,7 @@ def create_db_backup():
     """
     try:
         from flask import current_app
-        data_folder = current_app.config.get('DATA_FOLDER', 'C:\\NRV')
+        data_folder = current_app.config.get('DATA_FOLDER', os.getcwd())
         db_path = current_app.config.get('DATABASE_PATH')
         
         if not db_path or not os.path.exists(db_path):
@@ -309,7 +309,7 @@ def cleanup_old_backups(days=30):
     try:
         from flask import current_app
         import time
-        data_folder = current_app.config.get('DATA_FOLDER', 'C:\\NRV')
+        data_folder = current_app.config.get('DATA_FOLDER', os.getcwd())
         backup_dir = os.path.join(data_folder, 'backups')
         
         if not os.path.exists(backup_dir):
@@ -523,7 +523,7 @@ def restore_from_data_dict(data_dict):
                 total_due=float(row.get('total_due') or 0),
                 payment_history=str(row['payment_history']),
                 bank_name=str(row['bank_name']),
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(d)
             db.session.flush()
@@ -561,7 +561,7 @@ def restore_from_data_dict(data_dict):
                 nid_no=row.get('nid_no', ''),
                 present_address=row.get('present_address', ''),
                 permanent_address=row.get('permanent_address', ''),
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(c)
             db.session.flush()
@@ -584,7 +584,7 @@ def restore_from_data_dict(data_dict):
                 remarks=str(row['remarks']),
                 images=str(row['images']),
                 customer_id=new_cust_id,
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(t)
 
@@ -597,7 +597,7 @@ def restore_from_data_dict(data_dict):
                 type=row['type'],
                 amount=float(row['amount'] or 0),
                 images=str(row['images']),
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(pc)
 
@@ -620,7 +620,7 @@ def restore_from_data_dict(data_dict):
                 account_type=str(row['account_type']),
                 currency=str(row['currency']),
                 status=str(row['status']),
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(b)
             db.session.flush()
@@ -644,7 +644,7 @@ def restore_from_data_dict(data_dict):
                 credit=float(row['credit'] or 0),
                 balance=float(row['balance'] or 0),
                 bank_id=new_bank_id,
-                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.utcnow()
+                updated_at=datetime.strptime(row['updated_at'], "%Y-%m-%d %H:%M:%S") if row.get('updated_at') else datetime.now(timezone.utc)
             )
             db.session.add(btx)
 
@@ -687,7 +687,7 @@ def restore_from_data_dict(data_dict):
                 category=row['category'],
                 phone=row.get('phone', ''),
                 address=row.get('address', ''),
-                created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.utcnow()
+                created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.now(timezone.utc)
             )
             db.session.add(p)
             db.session.flush()
@@ -716,7 +716,7 @@ def restore_from_data_dict(data_dict):
                 category=row.get('category', ''),
                 notes=row.get('notes', ''),
                 attachment=row.get('attachment', ''),
-                created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.utcnow()
+                created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.now(timezone.utc)
             )
             db.session.add(v)
             db.session.flush()
@@ -771,7 +771,7 @@ def restore_from_data_dict(data_dict):
                     balance=float(row.get('balance') or 0),
                     reference=row.get('reference', ''),
                     voucher_id=voucher_id_map.get(old_voucher_id),
-                    created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.utcnow()
+                    created_at=datetime.strptime(row['created_at'], "%Y-%m-%d %H:%M:%S") if row.get('created_at') else datetime.now(timezone.utc)
                 )
                 db.session.add(pl)
 
@@ -840,18 +840,7 @@ def export_party_ledger_to_excel(party_id):
 
     output.seek(0)
     # Get company info
-    import json
-    company_name = 'NEXUS RIVER VIEW'
-    data_dir = os.path.dirname(os.path.abspath(__file__)) # Default
-    # Attempt to get data_dir from environment if possible, or assume it's C:\NRV
-    data_dir = 'C:\\NRV' 
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                s = json.load(f)
-                company_name = s.get('company_name', company_name)
-        except Exception: pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
         
     safe_company_name = "".join(c for c in company_name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
     filename = f"{safe_company_name}_{party.name.replace(' ', '_')}_Ledger_{datetime.now().strftime('%Y%m%d')}.xlsx"

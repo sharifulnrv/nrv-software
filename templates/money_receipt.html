@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Receipt - {{ tx.transaction_id or tx.id }}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+
+        :root {
+            --primary-color: #1e3a8a;
+            --secondary-color: #3b82f6;
+            --text-dark: #1e293b;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-dark);
+            margin: 0;
+            padding: 20px;
+            background-color: #f1f5f9;
+        }
+
+        .receipt-container {
+            width: 210mm; /* A4 Width */
+            min-height: 148.5mm; /* A5 Height */
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            border-radius: 8px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 3px solid var(--primary-color);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .logo-area h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--primary-color);
+            letter-spacing: -0.5px;
+        }
+
+        .logo-area p {
+            margin: 5px 0 0;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .receipt-title {
+            text-align: right;
+        }
+
+        .receipt-title h2 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .main-content {
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            background-color: #f8fafc;
+            margin-bottom: 40px;
+        }
+
+        .receipt-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--text-dark);
+        }
+
+        .receipt-text strong {
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 5px;
+        }
+
+        .amount-words {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-left: 4px solid var(--secondary-color);
+            font-style: italic;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .footer {
+            margin-top: 60px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .signature-area {
+            text-align: center;
+            width: 200px;
+        }
+
+        .signature-line {
+            border-top: 1px solid var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .signature-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .amount-box {
+            background: var(--primary-color);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-size: 24px;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            display: inline-block;
+        }
+
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-30deg);
+            font-size: 120px;
+            font-weight: 900;
+            color: rgba(0, 0, 0, 0.03);
+            pointer-events: none;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .receipt-container {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+
+        .no-print-btn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div style="text-align: center;" class="no-print">
+        <button class="no-print-btn" onclick="window.print()">
+            Print Receipt
+        </button>
+    </div>
+
+    <div class="receipt-container">
+        <div class="watermark">NEXUS RIVER VIEW</div>
+        
+        <div class="header">
+            <div class="logo-area">
+                <h1>NEXUS RIVER VIEW</h1>
+                <p>Management Platform</p>
+            </div>
+            <div class="receipt-title">
+                <h2>MONEY RECEIPT</h2>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <span class="info-label">Receipt No</span>
+                <span class="info-value">#{{ tx.transaction_id or "TXN-" + tx.id|string }}</span>
+            </div>
+            <div class="info-item" style="text-align: right;">
+                <span class="info-label">Date</span>
+                <span class="info-value">{{ tx.date }}</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="receipt-text">
+                Received with thanks from <strong>{{ customer.name }}</strong>, 
+                Customer ID: <strong>{{ customer.customer_id }}</strong>, 
+                Plot No: <strong>{{ customer.plot_no or "N/A" }}</strong>, 
+                a sum of <strong>৳ {{ "{:,.2f}".format(tx.amount) }}</strong> 
+                via <strong>{{ "Bank (%s)"|format(tx.bank_name) if tx.bank_name else "Cash" }}</strong> 
+                as <strong>{{ tx.installment_type or "General Payment" }}</strong>.
+            </div>
+            
+            <div class="amount-words">
+                In Words: {{ amount_in_words }}
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="amount-box">
+                ৳ {{ "{:,.2f}".format(tx.amount) }}
+            </div>
+            
+            <div class="signature-area">
+                <div class="signature-line"></div>
+                <div class="signature-label">Authorized Signature</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px; text-align: center; color: var(--text-muted); font-size: 10px;">
+            This is a computer generated receipt. Generated on {{ now.strftime('%Y-%m-%d %H:%M:%S') }}
+        </div>
+    </div>
+</body>
+</html>

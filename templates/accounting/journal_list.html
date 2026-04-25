@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .journal-container {
+        padding: 2rem 0;
+        animation: fadeIn 0.6s ease-out;
+    }
+    .entry-card {
+        background: white;
+        border-radius: 1.25rem;
+        border: none;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        margin-bottom: 2rem;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+    .entry-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.08);
+    }
+    .entry-header {
+        background: #f8fafc;
+        padding: 1.25rem 1.75rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .ref-badge {
+        background: #1e3a8a;
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.6rem;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.85rem;
+    }
+    .journal-table thead th {
+        background: #ffffff;
+        color: #94a3b8;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border: none;
+        padding: 0.75rem 1.75rem;
+    }
+    .journal-table td {
+        padding: 1rem 1.75rem;
+        border-top: 1px solid #f8fafc;
+    }
+    .amount-text {
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+        color: #334155;
+    }
+    .debit-line { color: #059669; }
+    .credit-line { color: #dc2626; }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container journal-container">
+    <div class="d-flex justify-content-between align-items-center mb-5">
+        <div>
+            <h1 class="fw-bold h2 mb-1">General Journal</h1>
+            <p class="text-muted mb-0">Complete historical record of all double-entry postings.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('main.accounting_dashboard') }}" class="btn btn-light border rounded-pill px-4">
+                <i class="fas fa-arrow-left me-2"></i>Dashboard
+            </a>
+            <a href="{{ url_for('main.post_manual_journal') }}" class="btn btn-primary rounded-pill px-4 shadow-sm">
+                <i class="fas fa-plus-circle me-2"></i>New Entry
+            </a>
+        </div>
+    </div>
+
+    {% for entry in entries %}
+    <div class="entry-card">
+        <div class="entry-header d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+                <span class="ref-badge shadow-sm">{{ entry.reference }}</span>
+                <span class="fw-bold text-slate-700">{{ entry.date }}</span>
+                <span class="text-muted opacity-50">|</span>
+                <span class="fw-medium text-slate-600">{{ entry.description }}</span>
+            </div>
+            <div>
+                <span class="badge rounded-pill {{ 'bg-primary' if entry.type == 'Manual' else 'bg-info bg-opacity-10 text-info' }} px-3 py-2">
+                    {{ entry.type }}
+                </span>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table journal-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Account</th>
+                        <th>Narration</th>
+                        <th class="text-end" style="width: 150px;">Debit (DR)</th>
+                        <th class="text-end" style="width: 150px;">Credit (CR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for line in entry.lines %}
+                    <tr>
+                        <td>
+                            <div class="fw-bold text-dark">{{ line.account.name }}</div>
+                            <small class="text-muted font-monospace">{{ line.account.code }}</small>
+                        </td>
+                        <td class="text-muted italic small align-middle">{{ line.narration }}</td>
+                        <td class="text-end align-middle amount-text">
+                            {% if line.debit > 0 %}
+                                <span class="debit-line">৳ {{ "{:,.2f}".format(line.debit) }}</span>
+                            {% else %}
+                                <span class="opacity-10">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end align-middle amount-text">
+                            {% if line.credit > 0 %}
+                                <span class="credit-line">৳ {{ "{:,.2f}".format(line.credit) }}</span>
+                            {% else %}
+                                <span class="opacity-10">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="fas fa-book-open display-1 text-light"></i>
+        </div>
+        <h3 class="fw-bold text-muted">No journal records yet</h3>
+        <p class="text-muted">Once transactions occur or manual entries are made, they will appear here.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

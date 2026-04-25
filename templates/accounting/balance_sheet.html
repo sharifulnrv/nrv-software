@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .report-container {
+        padding: 3rem 0;
+        animation: fadeIn 0.8s ease-out;
+    }
+    .balance-card {
+        background: white;
+        border-radius: 2rem;
+        border: none;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+    .report-header {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        padding: 4rem;
+        text-align: center;
+        border-bottom: 2px solid #e2e8f0;
+    }
+    .column-title {
+        font-size: 0.75rem;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #64748b;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #f1f5f9;
+        margin-bottom: 1.5rem;
+    }
+    .balance-row {
+        padding: 1rem 0;
+        border-bottom: 1px solid #f8fafc;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .total-highlight {
+        background: #f8fafc;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-top: 2rem;
+        border: 1px solid #e2e8f0;
+    }
+    .equation-banner {
+        background: #1e293b;
+        color: white;
+        border-radius: 1.5rem;
+        padding: 2rem;
+        margin-top: 3rem;
+        text-align: center;
+        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    }
+    .equation-status {
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    @media print {
+        .d-print-none { display: none !important; }
+        .balance-card { border: 1px solid #e2e8f0; box-shadow: none; }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container report-container">
+    <div class="d-flex justify-content-between align-items-center mb-5 d-print-none">
+        <div>
+            <h1 class="fw-bold h2 mb-1">Balance Sheet</h1>
+            <p class="text-muted mb-0">Financial position snapshot: Assets, Liabilities, and Shareholder Equity.</p>
+        </div>
+        <div class="d-flex gap-3">
+             <a href="{{ url_for('main.accounting_dashboard') }}" class="btn btn-light border rounded-pill px-4">
+                Dashboard
+            </a>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Print Statement
+            </button>
+        </div>
+    </div>
+
+    <div class="balance-card">
+        <div class="report-header">
+            <h1 class="fw-bold text-dark mb-2">{{ global_company_name or 'Nexus River View' }}</h1>
+            <h5 class="text-secondary opacity-75 mb-4">STATEMENT OF FINANCIAL POSITION</h5>
+            <div class="d-flex justify-content-center">
+                <span class="badge bg-white text-primary border border-primary px-4 py-2 rounded-pill fw-bold">As of {{ now_datetime }}</span>
+            </div>
+        </div>
+
+        <div class="card-body p-5">
+            <div class="row g-5">
+                <!-- ASSETS COLUMN -->
+                <div class="col-lg-6 border-end">
+                    <div class="column-title">Assets</div>
+                    {% for item in assets %}
+                    <div class="balance-row">
+                        <span class="fw-medium text-slate-700">{{ item.name }}</span>
+                        <span class="fw-bold">৳ {{ "{:,.2f}".format(item.balance) }}</span>
+                    </div>
+                    {% endfor %}
+                    
+                    <div class="total-highlight d-flex justify-content-between align-items-center">
+                        <span class="fw-bold text-muted small">TOTAL ASSETS</span>
+                        <span class="h4 fw-bold text-success mb-0">৳ {{ "{:,.2f}".format(total_assets) }}</span>
+                    </div>
+                </div>
+
+                <!-- LIABILITIES & EQUITY COLUMN -->
+                <div class="col-lg-6">
+                    <div class="column-title">Liabilities & Equity</div>
+                    
+                    <div class="mb-4">
+                        <h6 class="fw-bold text-muted small mb-3">LIABILITIES</h6>
+                        {% for item in liabilities %}
+                        <div class="balance-row">
+                            <span class="fw-medium text-slate-700">{{ item.name }}</span>
+                            <span class="fw-bold">৳ {{ "{:,.2f}".format(item.balance) }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <div class="mt-5">
+                        <h6 class="fw-bold text-muted small mb-3">EQUITY</h6>
+                        {% for item in equities %}
+                        <div class="balance-row">
+                            <span class="fw-medium text-slate-700">{{ item.name }}</span>
+                            <span class="fw-bold">৳ {{ "{:,.2f}".format(item.balance) }}</span>
+                        </div>
+                        {% endfor %}
+                        <div class="balance-row italic">
+                            <span class="fw-medium text-slate-500">Retained Earnings (P&L)</span>
+                            <span class="fw-bold">৳ {{ "{:,.2f}".format(retained_earnings) }}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="total-highlight d-flex justify-content-between align-items-center bg-primary bg-opacity-10 border-primary border-opacity-25">
+                        <span class="fw-bold text-primary small">TOTAL LIAB. & EQUITY</span>
+                        <span class="h4 fw-bold text-primary mb-0">৳ {{ "{:,.2f}".format(total_liab_equity) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EQUATION STATUS -->
+            <div class="equation-banner">
+                {% if (total_assets - total_liab_equity)|abs < 0.01 %}
+                <div class="equation-status text-success">
+                    <i class="fas fa-check-double me-2"></i> Accounting Equation Balanced
+                </div>
+                <p class="mb-0 opacity-75 small mt-1">Assets (৳{{ "{:,.2f}".format(total_assets) }}) = Liabilities & Equity (৳{{ "{:,.2f}".format(total_liab_equity) }})</p>
+                {% else %}
+                <div class="equation-status text-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i> Balance Mismatch Detected
+                </div>
+                <p class="mb-0 opacity-75 small mt-1">Discrepancy: ৳{{ "{:,.2f}".format(total_assets - total_liab_equity) }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

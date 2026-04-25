@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .form-container {
+        padding: 3rem 0;
+        animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .premium-card {
+        background: white;
+        border-radius: 2rem;
+        border: none;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+    .card-header-gradient {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        padding: 3rem;
+        color: white;
+    }
+    .floating-input {
+        background: #f8fafc;
+        border: 2px solid #e2e8f0;
+        border-radius: 1rem;
+        padding: 0.85rem 1.25rem;
+        transition: all 0.3s;
+    }
+    .floating-input:focus {
+        background: white;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+        outline: none;
+    }
+    .line-row {
+        transition: background 0.2s;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .line-row:hover {
+        background: #f8fafc;
+    }
+    .tot-bar {
+        background: #f1f5f9;
+        border-radius: 1.25rem;
+        margin-top: 1rem;
+    }
+    .btn-add {
+        border: 2px dashed #cbd5e1;
+        color: #64748b;
+        background: transparent;
+        transition: all 0.3s;
+    }
+    .btn-add:hover {
+        border-color: #3b82f6;
+        color: #3b82f6;
+        background: #eff6ff;
+    }
+    .balance-badge {
+        padding: 0.75rem 1.5rem;
+        border-radius: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container form-container">
+    <form method="POST" action="{{ url_for('main.post_manual_journal') }}" id="journal-form">
+        <div class="premium-card">
+            <div class="card-header-gradient">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="fw-bold mb-2">New Journal Entry</h1>
+                        <p class="mb-0 opacity-75">Manual double-entry posting. Balances are validated in real-time.</p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <a href="{{ url_for('main.journal_list') }}" class="btn btn-light rounded-pill px-4 fw-bold">
+                            Cancel
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-5">
+                <!-- Header Info -->
+                <div class="row g-4 mb-5">
+                    <div class="col-md-3">
+                        <label class="form-label text-muted fw-bold small">DATE</label>
+                        <input type="date" name="date" class="form-control floating-input" value="{{ today_str }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted fw-bold small">REFERENCE CODE</label>
+                        <input type="text" name="reference" class="form-control floating-input" placeholder="e.g. ADJ-2024-01">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted fw-bold small">DESCRIPTION</label>
+                        <input type="text" name="description" class="form-control floating-input" placeholder="What is this transaction for?" required>
+                    </div>
+                </div>
+
+                <!-- Lines Table -->
+                <div class="table-responsive">
+                    <table class="table table-borderless align-middle" id="lines-table">
+                        <thead>
+                            <tr class="text-muted small fw-bold">
+                                <th style="width: 35%;">ACCOUNT</th>
+                                <th style="width: 35%;">NARRATION</th>
+                                <th class="text-end">DEBIT (DR)</th>
+                                <th class="text-end">CREDIT (CR)</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="lines-body">
+                            {% for i in range(2) %}
+                            <tr class="line-row">
+                                <td>
+                                    <select name="account_id[]" class="form-select floating-input border-0 shadow-none py-2" required>
+                                        <option value="">Select account...</option>
+                                        {% for acc in accounts %}
+                                        <option value="{{ acc.id }}">{{ acc.code }} - {{ acc.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td>
+                                    <input type="text" name="narration[]" class="form-control floating-input border-0 shadow-none py-2" placeholder="Line detail...">
+                                </td>
+                                <td>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent border-0 opacity-50">৳</span>
+                                        <input type="number" step="0.01" name="debit[]" class="form-control floating-input border-0 shadow-none py-2 text-end debit-input" value="0.00">
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent border-0 opacity-50">৳</span>
+                                        <input type="number" step="0.01" name="credit[]" class="form-control floating-input border-0 shadow-none py-2 text-end credit-input" value="0.00">
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <button type="button" class="btn btn-link text-danger p-0 remove-line"><i class="fas fa-trash-alt"></i></button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-grid mt-3">
+                    <button type="button" id="add-line-btn" class="btn btn-add py-3 rounded-4 fw-bold">
+                        <i class="fas fa-plus-circle me-2"></i>Add Line
+                    </button>
+                </div>
+
+                <!-- Footer / Totals -->
+                <div class="tot-bar p-4 d-flex justify-content-between align-items-center mt-5">
+                    <div class="d-flex gap-5">
+                        <div>
+                            <span class="text-muted small fw-bold d-block">TOTAL DEBIT</span>
+                            <span id="total-debit" class="h4 fw-bold mb-0 text-success">৳ 0.00</span>
+                        </div>
+                        <div>
+                            <span class="text-muted small fw-bold d-block">TOTAL CREDIT</span>
+                            <span id="total-credit" class="h4 fw-bold mb-0 text-danger">৳ 0.00</span>
+                        </div>
+                    </div>
+                    
+                    <div id="balance-check" class="balance-badge bg-danger bg-opacity-10 text-danger">
+                       Unbalanced: <span id="diff-amount">0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer bg-light p-4 border-0 text-end">
+                <button type="submit" id="submit-btn" class="btn btn-primary btn-lg rounded-pill px-5 fw-bold shadow" disabled>
+                    <i class="fas fa-paper-plane me-2"></i>Post to Ledger
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const linesBody = document.getElementById('lines-body');
+    const addLineBtn = document.getElementById('add-line-btn');
+    const totalDebitEl = document.getElementById('total-debit');
+    const totalCreditEl = document.getElementById('total-credit');
+    const diffAmountEl = document.getElementById('diff-amount');
+    const balanceCheck = document.getElementById('balance-check');
+    const submitBtn = document.getElementById('submit-btn');
+
+    function calculateTotals() {
+        let totalDebit = 0;
+        let totalCredit = 0;
+        
+        document.querySelectorAll('.debit-input').forEach(input => {
+            totalDebit += parseFloat(input.value || 0);
+        });
+        document.querySelectorAll('.credit-input').forEach(input => {
+            totalCredit += parseFloat(input.value || 0);
+        });
+
+        totalDebitEl.textContent = '৳ ' + totalDebit.toLocaleString(undefined, {minimumFractionDigits: 2});
+        totalCreditEl.textContent = '৳ ' + totalCredit.toLocaleString(undefined, {minimumFractionDigits: 2});
+        
+        const diff = Math.abs(totalDebit - totalCredit);
+        diffAmountEl.textContent = diff.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+        if (diff < 0.01 && (totalDebit > 0 || totalCredit > 0)) {
+            balanceCheck.innerHTML = '<i class="fas fa-check-circle me-1"></i> Entries Balanced';
+            balanceCheck.className = 'balance-badge bg-success bg-opacity-10 text-success';
+            submitBtn.disabled = false;
+        } else {
+            balanceCheck.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> Difference: ৳ ' + diff.toFixed(2);
+            balanceCheck.className = 'balance-badge bg-danger bg-opacity-10 text-danger';
+            submitBtn.disabled = true;
+        }
+    }
+
+    addLineBtn.addEventListener('click', function() {
+        const rows = linesBody.querySelectorAll('.line-row');
+        const firstRow = rows[0];
+        const newRow = firstRow.cloneNode(true);
+        newRow.querySelectorAll('input').forEach(input => input.value = input.classList.contains('debit-input') || input.classList.contains('credit-input') ? '0.00' : '');
+        newRow.querySelectorAll('select').forEach(select => select.value = '');
+        linesBody.appendChild(newRow);
+        attachListeners(newRow);
+    });
+
+    function attachListeners(row) {
+        row.querySelector('.remove-line').addEventListener('click', function() {
+            if (linesBody.querySelectorAll('.line-row').length > 2) {
+                row.remove();
+                calculateTotals();
+            }
+        });
+        row.querySelectorAll('input, select').forEach(input => {
+            input.addEventListener('input', calculateTotals);
+        });
+    }
+
+    document.querySelectorAll('.line-row').forEach(attachListeners);
+    calculateTotals();
+});
+</script>
+{% endblock %}

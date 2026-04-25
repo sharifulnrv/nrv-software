@@ -186,10 +186,14 @@ def index():
     try:
         directors = Director.query.all()
         customers = Customer.query.all()
-        grand_total_payable = sum(c.total_price for c in customers)
+        from models import Installment
+        total_milestone_rate = sum(inst.amount_per_share for inst in Installment.query.all())
+        total_director_shares = sum(d.total_share for d in directors)
+        
+        grand_total_payable = total_director_shares * total_milestone_rate
         grand_total_paid = sum(c.total_paid for c in customers)
-        grand_total_due = sum(c.due_amount for c in customers)
-        grand_total_outstanding = grand_total_payable - grand_total_paid
+        grand_total_due = grand_total_payable - grand_total_paid
+        grand_total_outstanding = grand_total_due # or keep as is if outstanding means something else
             
         total_bank_balance = sum(tx.credit - tx.debit for tx in BankTransaction.query.all())
         
@@ -330,6 +334,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user)
+            backup_to_telegram(f"User Login: {user.username}")
             return redirect(url_for('main.index'))
         else:
             flash('Invalid username or password', 'danger')
@@ -458,14 +463,28 @@ def verify_otp_page():
         if 'current_otp' in otp_store and otp_store['current_otp'] == user_otp:
             # Update Password
             # Use DATA_FOLDER to ensure persistence
-            data_folder = current_app.config.get('DATA_FOLDER', current_app.root_path)
-            config_path = os.path.join(data_folder, 'admin_config.json')
-            
+            # Update Password in .env file
             try:
-                with open(config_path, 'w') as f:
-                    json.dump({"ADMIN_PASSWORD": new_password}, f)
+                env_path = os.path.join(current_app.root_path, '.env')
+                if os.path.exists(env_path):
+                    with open(env_path, 'r') as f:
+                        lines = f.readlines()
+                    
+                    with open(env_path, 'w') as f:
+                        found = False
+                        for line in lines:
+                            if line.startswith('ADMIN_PASSWORD='):
+                                f.write(f'ADMIN_PASSWORD="{new_password}"\n')
+                                found = True
+                            else:
+                                f.write(line)
+                        if not found:
+                            f.write(f'ADMIN_PASSWORD="{new_password}"\n')
+                else:
+                    with open(env_path, 'w') as f:
+                        f.write(f'ADMIN_PASSWORD="{new_password}"\n')
             except Exception as e:
-                flash(f'Error saving password: {e}', 'danger')
+                flash(f'Error updating .env: {e}', 'danger')
                 return redirect(url_for('main.index'))
             
             # Update Runtime Config
@@ -681,18 +700,8 @@ def individual_report():
     emp = None
     
     # Global Print Headers
-    company_name = "Company Name"
-    company_address = ""
-    data_dir = current_app.config.get('DATA_FOLDER', '.')
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                settings_data = json.load(f)
-                company_name = settings_data.get('company_name', company_name)
-                company_address = settings_data.get('company_address', company_address)
-        except Exception:
-            pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
+    company_address = os.environ.get('COMPANY_ADDRESS', '')
             
     if request.method == 'POST':
         selected_emp_id = request.form.get('employee_id')
@@ -1365,15 +1374,8 @@ def view_salary_sheet():
     company_name = "Company Name"
     company_address = ""
     data_dir = current_app.config.get('DATA_FOLDER', '.')
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                settings_data = json.load(f)
-                company_name = settings_data.get('company_name', company_name)
-                company_address = settings_data.get('company_address', company_address)
-        except Exception:
-            pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
+    company_address = os.environ.get('COMPANY_ADDRESS', '')
             
     return render_template('salary_sheet.html', 
                            selected_month_year=selected_month_year, 
@@ -1409,15 +1411,8 @@ def export_salary_sheet_excel():
     company_name = "Nexus River View"
     company_address = ""
     data_dir = current_app.config.get('DATA_FOLDER', '.')
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                settings_data = json.load(f)
-                company_name = settings_data.get('company_name', company_name)
-                company_address = settings_data.get('company_address', company_address)
-        except Exception:
-            pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
+    company_address = os.environ.get('COMPANY_ADDRESS', '')
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -1549,15 +1544,8 @@ def generate_salary_sheet():
     company_name = "Company Name"
     company_address = "Company Address"
     data_dir = current_app.config.get('DATA_FOLDER', '.')
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                settings_data = json.load(f)
-                company_name = settings_data.get('company_name', company_name)
-                company_address = settings_data.get('company_address', company_address)
-        except Exception:
-            pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
+    company_address = os.environ.get('COMPANY_ADDRESS', '')
 
     if action == 'view':
         salaries = Salary.query.filter_by(year=year, month=monthstr).join(Employee).order_by(db.cast(Employee.employee_id, db.Integer)).all()
@@ -2472,6 +2460,14 @@ def manage_transactions(customer_id):
         
         db.session.commit()
 
+        # --- NEW: Accrual Accounting Integration (Money Receipt) ---
+        try:
+            from accounting_logic import JournalManager
+            JournalManager.auto_post_transaction(new_tx)
+            db.session.commit()
+        except Exception as e:
+            print(f"Failed to auto-post transaction {new_tx.id} to ledger: {e}")
+
         # Recalculate everything
         recalculate_customer_totals(customer)
         db.session.commit()
@@ -2522,7 +2518,13 @@ def delete_transaction(id):
         if ci:
             ci.paid_amount -= tx.amount
             ci.due_amount = ci.total_amount - ci.paid_amount
-    
+    # --- NEW: Accrual Accounting Integration ---
+    from models import JournalEntry
+    ref = f"TX-{tx.id}"
+    old_je = JournalEntry.query.filter_by(reference=ref).first()
+    if old_je:
+        db.session.delete(old_je)
+        
     db.session.delete(tx)
     db.session.commit()
     
@@ -2624,6 +2626,15 @@ def manage_petty_cash():
         )
         db.session.add(new_entry)
         db.session.commit()
+        
+        # --- NEW: Accrual Accounting Integration ---
+        try:
+            from accounting_logic import JournalManager
+            JournalManager.auto_post_petty_cash(new_entry)
+            db.session.commit()
+        except Exception as e:
+            print(f"Failed to auto-post petty cash to ledger: {e}")
+
         trigger_excel_sync()
         trigger_sync()
         backup_to_telegram("Added Petty Cash: " + description)
@@ -2804,6 +2815,14 @@ def delete_petty_cash(id):
         return redirect(url_for('main.manage_petty_cash'))
 
     entry = PettyCash.query.get_or_404(id)
+    
+    # --- NEW: Accrual Accounting Integration ---
+    if entry.journal_entry_id:
+        from models import JournalEntry
+        old_je = JournalEntry.query.get(entry.journal_entry_id)
+        if old_je:
+            db.session.delete(old_je)
+
     db.session.delete(entry)
     db.session.commit()
     trigger_excel_sync()
@@ -3535,6 +3554,15 @@ def add_voucher(v_type):
         # Process Financials
         process_voucher_financials(v.id, action='add')
         
+        # --- NEW: Accrual Accounting Integration ---
+        try:
+            from accounting_logic import JournalManager
+            JournalManager.auto_post_voucher(v)
+            db.session.commit()
+        except Exception as e:
+            # Non-blocking error for the legacy system
+            print(f"Failed to auto-post voucher {v.voucher_no} to ledger: {e}")
+        
         backup_to_telegram(f"Added {v_type} Voucher: {voucher_no}")
         flash(f'{v_type} Voucher added successfully!', 'success')
         return redirect(url_for('main.manage_vouchers'))
@@ -3582,6 +3610,20 @@ def edit_voucher(id):
         # Re-process Financials
         process_voucher_financials(v.id, action='edit')
         
+        # --- NEW: Accrual Accounting Integration ---
+        try:
+            from accounting_logic import JournalManager
+            from models import JournalEntry
+            if v.journal_entry_id:
+                old_je = JournalEntry.query.get(v.journal_entry_id)
+                if old_je:
+                    db.session.delete(old_je)
+                v.journal_entry_id = None
+            JournalManager.auto_post_voucher(v)
+            db.session.commit()
+        except Exception as e:
+            print(f"Failed to update ledger for voucher {v.voucher_no}: {e}")
+            
         backup_to_telegram(f"Edited Voucher: {v.voucher_no}")
         flash('Voucher updated successfully!', 'success')
         return redirect(url_for('main.manage_vouchers'))
@@ -3607,6 +3649,13 @@ def delete_voucher(id):
     # Process financials before deleting object
     process_voucher_financials(v.id, action='delete')
     
+    # --- NEW: Accrual Accounting Integration ---
+    if v.journal_entry_id:
+        from models import JournalEntry
+        old_je = JournalEntry.query.get(v.journal_entry_id)
+        if old_je:
+            db.session.delete(old_je)
+
     db.session.delete(v)
     db.session.commit()
     
@@ -3663,6 +3712,14 @@ def add_contra_entry():
         db.session.commit()
         process_contra_financials(c.id, action='add')
         
+        # --- NEW: Accrual Accounting Integration ---
+        try:
+            from accounting_logic import JournalManager
+            JournalManager.auto_post_contra(c)
+            db.session.commit()
+        except Exception as e:
+            print(f"Failed to auto-post contra entry to ledger: {e}")
+
         flash('Contra entry added successfully!', 'success')
         return redirect(url_for('main.manage_contra_entries'))
         
@@ -3706,10 +3763,22 @@ def edit_contra_entry(id):
     banks = Bank.query.filter_by(status='Active').all()
     return render_template('contra_form.html', contra=c, banks=banks)
 
+@main.route('/contra/print/<int:id>')
+def print_contra_entry(id):
+    c = ContraEntry.query.get_or_404(id)
+    return render_template('contra_print.html', contra=c)
+
 @main.route('/contra/delete/<int:id>', methods=['POST'])
 def delete_contra_entry(id):
     c = ContraEntry.query.get_or_404(id)
     
+    # --- NEW: Accrual Accounting Integration ---
+    from models import JournalEntry
+    ref = f"CON-{c.id}"
+    old_je = JournalEntry.query.filter_by(reference=ref).first()
+    if old_je:
+        db.session.delete(old_je)
+
     # Delete associated files
     if c.attachments:
         upload_folder = current_app.config['UPLOAD_FOLDER']
@@ -4015,15 +4084,8 @@ def settings():
     company_name = "Company Name"
     company_address = ""
     data_dir = current_app.config.get('DATA_FOLDER', '.')
-    settings_path = os.path.join(data_dir, 'company_settings.json')
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, 'r') as f:
-                settings_data = json.load(f)
-                company_name = settings_data.get('company_name', company_name)
-                company_address = settings_data.get('company_address', company_address)
-        except Exception:
-            pass
+    company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
+    company_address = os.environ.get('COMPANY_ADDRESS', '')
 
     # List available backups
     backups = []
@@ -4209,3 +4271,243 @@ def handle_exception(e):
     # Return error page instead of redirect loop
     return render_template('error.html', error=str(e), path=request.path), 500
 
+@main.route('/backup/manual')
+@login_required
+def manual_backup():
+    try:
+        from telegram_utils import send_telegram_document
+        from datetime import datetime
+        import threading
+        db_path = current_app.config.get('DATABASE_PATH')
+        if db_path and os.path.exists(db_path):
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            caption = f"Manual DB Backup triggered by: {current_user.username}\nTime: {timestamp}"
+            
+            # Send in background to avoid blocking the UI
+            thread = threading.Thread(target=send_telegram_document, args=(db_path, caption))
+            thread.daemon = True
+            thread.start()
+            
+            flash('Database backup triggered! Check your Telegram.', 'success')
+        else:
+            flash('Database file not found.', 'danger')
+    except Exception as e:
+        flash(f'Backup failed: {e}', 'danger')
+    return redirect(request.referrer or url_for('main.index'))
+
+# --- Accrual Accounting Routes ---
+
+@main.route('/accounting')
+@login_required
+def accounting_dashboard():
+    from models import Account, JournalEntry, JournalEntryLine
+    from sqlalchemy import func
+    
+    accounts = Account.query.all()
+    entries = JournalEntry.query.order_by(JournalEntry.date.desc()).limit(10).all()
+    
+    # Calculate Summary Stats for Dashboard Cards
+    def get_bal(acc_type, dr_credit_sign=1):
+        # dr_credit_sign: 1 for (DR-CR), -1 for (CR-DR)
+        val = db.session.query(
+            func.sum(JournalEntryLine.debit) - func.sum(JournalEntryLine.credit)
+        ).join(Account).filter(Account.type == acc_type).scalar() or 0.0
+        return val * dr_credit_sign
+
+    stats = {
+        'assets': get_bal('Asset', 1),
+        'liabilities': get_bal('Liability', -1),
+        'revenue': get_bal('Revenue', -1),
+        'expenses': get_bal('Expense', 1)
+    }
+    
+    return render_template('accounting/dashboard.html', accounts=accounts, entries=entries, stats=stats)
+
+@main.route('/accounting/coa')
+@login_required
+def coa_list():
+    from models import Account
+    accounts = Account.query.order_by(Account.code).all()
+    return render_template('accounting/coa_list.html', accounts=accounts)
+
+@main.route('/accounting/journal')
+@login_required
+def journal_list():
+    from models import JournalEntry
+    entries = JournalEntry.query.order_by(JournalEntry.date.desc()).all()
+    return render_template('accounting/journal_list.html', entries=entries)
+
+@main.route('/accounting/reports')
+@login_required
+def accounting_reports_menu():
+    return render_template('accounting/reports_menu.html')
+
+@main.route('/accounting/reports/trial-balance')
+@login_required
+def trial_balance_report():
+    from sqlalchemy import func
+    from models import Account, JournalEntryLine
+    
+    results = db.session.query(
+        Account.code,
+        Account.name,
+        func.sum(JournalEntryLine.debit).label('debit'),
+        func.sum(JournalEntryLine.credit).label('credit')
+    ).outerjoin(JournalEntryLine).group_by(Account.id).order_by(Account.code).all()
+    
+    return render_template('accounting/trial_balance.html', results=results)
+@main.route('/accounting/journal/new', methods=['GET', 'POST'])
+@login_required
+def post_manual_journal():
+    from models import Account, JournalEntry
+    from accounting_logic import JournalManager
+    
+    if request.method == 'POST':
+        date = request.form.get('date')
+        reference = request.form.get('reference')
+        description = request.form.get('description')
+        
+        account_ids = request.form.getlist('account_id[]')
+        narrations = request.form.getlist('narration[]')
+        debits = request.form.getlist('debit[]')
+        credits = request.form.getlist('credit[]')
+        
+        lines = []
+        for i in range(len(account_ids)):
+            if not account_ids[i]: continue
+            lines.append({
+                'account_id': int(account_ids[i]),
+                'debit': float(debits[i] or 0),
+                'credit': float(credits[i] or 0),
+                'narration': narrations[i]
+            })
+            
+        try:
+            JournalManager.post_balanced_entry(date, reference, description, lines, entry_type='Manual')
+            db.session.commit()
+            flash('Journal entry posted successfully!', 'success')
+            return redirect(url_for('main.journal_list'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error posting journal: {e}', 'danger')
+            
+    accounts = Account.query.order_by(Account.code).all()
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    return render_template('accounting/journal_form.html', accounts=accounts, today_str=today_str)
+
+@main.route('/accounting/reports/profit-loss')
+@login_required
+def profit_loss_report():
+    from models import Account, JournalEntryLine
+    from sqlalchemy import func
+    
+    # Revenue (Type: Revenue, Credits - Debits)
+    revenue_lines = db.session.query(
+        Account.name,
+        (func.sum(JournalEntryLine.credit) - func.sum(JournalEntryLine.debit)).label('balance')
+    ).join(JournalEntryLine).filter(Account.type == 'Revenue').group_by(Account.id).all()
+    
+    # Expenses (Type: Expense, Debits - Credits)
+    expense_lines = db.session.query(
+        Account.name,
+        (func.sum(JournalEntryLine.debit) - func.sum(JournalEntryLine.credit)).label('balance')
+    ).join(JournalEntryLine).filter(Account.type == 'Expense').group_by(Account.id).all()
+    
+    total_rev = sum(r.balance for r in revenue_lines)
+    total_exp = sum(e.balance for e in expense_lines)
+    net_profit = total_rev - total_exp
+    
+    return render_template('accounting/profit_loss.html', 
+                           revenue=revenue_lines, expenses=expense_lines,
+                           total_rev=total_rev, total_exp=total_exp, net_profit=net_profit)
+@main.route('/accounting/reports/balance-sheet')
+@login_required
+def balance_sheet_report():
+    from models import Account, JournalEntryLine
+    from sqlalchemy import func
+    
+    # 1. Assets
+    assets = db.session.query(
+        Account.name,
+        (func.sum(JournalEntryLine.debit) - func.sum(JournalEntryLine.credit)).label('balance')
+    ).join(JournalEntryLine).filter(Account.type == 'Asset').group_by(Account.id).all()
+    
+    # 2. Liabilities
+    liabilities = db.session.query(
+        Account.name,
+        (func.sum(JournalEntryLine.credit) - func.sum(JournalEntryLine.debit)).label('balance')
+    ).join(JournalEntryLine).filter(Account.type == 'Liability').group_by(Account.id).all()
+    
+    # 3. Equity (Core)
+    equities = db.session.query(
+        Account.name,
+        (func.sum(JournalEntryLine.credit) - func.sum(JournalEntryLine.debit)).label('balance')
+    ).join(JournalEntryLine).filter(Account.type == 'Equity').group_by(Account.id).all()
+    
+    # 4. Retained Earnings (Profit/Loss Calculation)
+    rev_total = db.session.query(
+        (func.sum(JournalEntryLine.credit) - func.sum(JournalEntryLine.debit))
+    ).join(Account).filter(Account.type == 'Revenue').scalar() or 0.0
+    
+    exp_total = db.session.query(
+        (func.sum(JournalEntryLine.debit) - func.sum(JournalEntryLine.credit))
+    ).join(Account).filter(Account.type == 'Expense').scalar() or 0.0
+    
+    retained_earnings = rev_total - exp_total
+    
+    total_assets = sum(a.balance for a in assets)
+    total_liab_equity = sum(l.balance for l in liabilities) + sum(e.balance for e in equities) + retained_earnings
+    
+    return render_template('accounting/balance_sheet.html', 
+                           assets=assets, liabilities=liabilities, equities=equities,
+                           retained_earnings=retained_earnings,
+                           total_assets=total_assets, total_liab_equity=total_liab_equity)
+@main.route('/accounting/sync-historical')
+@login_required
+def trigger_sync_historical():
+    from accounting_logic import JournalManager
+    try:
+        count = JournalManager.sync_historical_data()
+        db.session.commit()
+        flash(f'Successfully synchronized {count} historical transactions to the ledger.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Sync failed: {e}', 'danger')
+    return redirect(url_for('main.accounting_dashboard'))
+
+def number_to_words(number):
+    """Simple number to words converter for currency."""
+    units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", 
+             "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+    tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+    
+    def n2w(n):
+        if n < 20: return units[n]
+        if n < 100: return tens[n // 10] + (("-" + units[n % 10]) if n % 10 != 0 else "")
+        if n < 1000: return units[n // 100] + " Hundred" + ((" and " + n2w(n % 100)) if n % 100 != 0 else "")
+        if n < 100000: return n2w(n // 1000) + " Thousand" + ((" " + n2w(n % 1000)) if n % 1000 != 0 else "")
+        if n < 10000000: return n2w(n // 100000) + " Lac" + ((" " + n2w(n % 100000)) if n % 100000 != 0 else "")
+        return str(n)
+
+    try:
+        n = int(number)
+        if n == 0: return "Zero"
+        words = n2w(n)
+        return words + " Taka Only"
+    except:
+        return ""
+
+@main.route('/print_receipt/<int:tx_id>')
+@login_required
+def print_receipt(tx_id):
+    from models import Transaction, Customer
+    tx = Transaction.query.get_or_404(tx_id)
+    customer = tx.customer
+    
+    amount_in_words = number_to_words(tx.amount)
+    
+    return render_template('money_receipt.html', 
+                           tx=tx, 
+                           customer=customer, 
+                           amount_in_words=amount_in_words,
+                           now=datetime.now())

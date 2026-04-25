@@ -52,8 +52,17 @@ class SyncManager:
         if self._client is None:
             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             try:
-                creds_file = get_credentials_path()
-                creds = ServiceAccountCredentials.from_json_keyfile_name(creds_file, scope)
+                # 1. Try environment variable
+                creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+                if creds_json:
+                    import json
+                    creds_dict = json.loads(creds_json)
+                    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                else:
+                    # 2. Fallback to file
+                    creds_file = get_credentials_path()
+                    creds = ServiceAccountCredentials.from_json_keyfile_name(creds_file, scope)
+                
                 self._client = gspread.authorize(creds)
             except Exception as e:
                 log_debug(f"Failed to authorize Google Sheets: {e}")

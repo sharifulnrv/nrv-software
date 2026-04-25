@@ -1,0 +1,290 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        --accent-gradient: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+        --glass-bg: rgba(255, 255, 255, 0.95);
+        --card-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .accounting-dashboard {
+        padding: 2rem 0;
+        animation: fadeIn 0.8s ease-out;
+    }
+
+    .premium-header {
+        background: var(--primary-gradient);
+        color: white;
+        padding: 2.5rem;
+        border-radius: 1.5rem;
+        margin-bottom: 2.5rem;
+        box-shadow: var(--card-shadow);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .premium-header::after {
+        content: '';
+        position: absolute;
+        top: 0; right: 0;
+        width: 300px; height: 300px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        transform: translate(100px, -100px);
+    }
+
+    .header-content {
+        position: relative;
+        z-index: 1;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 1.25rem;
+        padding: 1.75rem;
+        border: none;
+        box-shadow: var(--card-shadow);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        height: 100%;
+        border-bottom: 4px solid transparent;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-10px);
+    }
+
+    .stat-card.asset { border-color: #10b981; }
+    .stat-card.liability { border-color: #ef4444; }
+    .stat-card.revenue { border-color: #3b82f6; }
+    .stat-card.expense { border-color: #f59e0b; }
+
+    .stat-icon {
+        width: 54px;
+        height: 54px;
+        border-radius: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .asset .stat-icon { background: #d1fae5; color: #059669; }
+    .liability .stat-icon { background: #fee2e2; color: #dc2626; }
+    .revenue .stat-icon { background: #dbeafe; color: #2563eb; }
+    .expense .stat-icon { background: #fef3c7; color: #d97706; }
+
+    .table-luxury {
+        background: white;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        box-shadow: var(--card-shadow);
+    }
+
+    .table-luxury thead {
+        background: #f8fafc;
+        border-bottom: 2px solid #f1f5f9;
+    }
+
+    .table-luxury th {
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+        padding: 1.25rem;
+    }
+
+    .table-luxury td {
+        padding: 1.25rem;
+        vertical-align: middle;
+    }
+
+    .btn-premium {
+        background: var(--primary-gradient);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.75rem;
+        font-weight: 600;
+        transition: all 0.3s;
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-premium:hover {
+        transform: scale(1.05);
+        box-shadow: 0 10px 15px rgba(59, 130, 246, 0.3);
+        color: white;
+    }
+
+    .badge-soft {
+        padding: 0.4em 0.8em;
+        border-radius: 0.5rem;
+        font-weight: 600;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container accounting-dashboard">
+    <!-- Header -->
+    <div class="premium-header animate__animated animate__fadeInDown">
+        <div class="row align-items-center">
+            <div class="col-lg-8 header-content">
+                <h1 class="display-5 fw-bold mb-2">Accounting Hub</h1>
+                <p class="lead opacity-75 mb-0">Nexus River View Financial Single-Source-of-Truth</p>
+                <div class="mt-4">
+                    <a href="{{ url_for('main.trigger_sync_historical') }}" class="btn btn-warning btn-sm shadow-sm" onclick="return confirm('Retroactively process all history?')">
+                        <i class="fas fa-sync me-1"></i> Synchronize All Historical Data
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-end">
+                <div class="glass-actions p-3 rounded-4 d-inline-block" style="background: rgba(255,255,255,0.1); backdrop-filter: blur(10px);">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('main.coa_list') }}" class="btn btn-light"><i class="fas fa-sitemap me-2"></i> Chart of Accounts</a>
+                        <a href="{{ url_for('main.post_manual_journal') }}" class="btn btn-light"><i class="fas fa-plus-circle me-2"></i> New Journal Entry</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row g-4 mb-5">
+        <div class="col-md-3">
+            <div class="stat-card asset">
+                <div class="stat-icon"><i class="fas fa-wallet"></i></div>
+                <h6 class="text-muted mb-1">Total Assets</h6>
+                <h3 class="fw-bold">৳ {{ "{:,.2f}".format(stats.assets) }}</h3>
+                <small class="text-success"><i class="fas fa-arrow-up"></i> Liquidity</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card liability">
+                <div class="stat-icon"><i class="fas fa-hand-holding-usd"></i></div>
+                <h6 class="text-muted mb-1">Total Liabilities</h6>
+                <h3 class="fw-bold">৳ {{ "{:,.2f}".format(stats.liabilities) }}</h3>
+                <small class="text-danger"><i class="fas fa-minus-circle"></i> Payables</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card revenue">
+                <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                <h6 class="text-muted mb-1">Lifetime Revenue</h6>
+                <h3 class="fw-bold">৳ {{ "{:,.2f}".format(stats.revenue) }}</h3>
+                <small class="text-primary"><i class="fas fa-check-circle"></i> Sales</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card expense">
+                <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                <h6 class="text-muted mb-1">Total Expenses</h6>
+                <h3 class="fw-bold">৳ {{ "{:,.2f}".format(stats.expenses) }}</h3>
+                <small class="text-warning"><i class="fas fa-chart-area"></i> Operations</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Recent Journal Entries -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-header bg-white border-0 py-4 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold mb-0">Recent Journal Entries</h5>
+                    <a href="{{ url_for('main.journal_list') }}" class="btn btn-sm btn-outline-primary rounded-pill px-3">View All</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="px-4">Date</th>
+                                    <th>Reference</th>
+                                    <th>Description</th>
+                                    <th>Type</th>
+                                    <th class="text-end px-4">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in entries %}
+                                <tr>
+                                    <td class="px-4 fw-medium text-primary">{{ entry.date }}</td>
+                                    <td><span class="badge bg-light text-dark border">{{ entry.reference }}</span></td>
+                                    <td class="text-truncate" style="max-width: 200px;">{{ entry.description }}</td>
+                                    <td>
+                                        <span class="badge badge-soft {{ 'bg-primary' if entry.type == 'Manual' else 'bg-info' }}">
+                                            {{ entry.type }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end px-4">
+                                        <button class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="fas fa-eye"></i></button>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">No journal entries found.</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Sidebar -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-4 bg-light overflow-hidden">
+                <div class="card-body p-0">
+                    <div class="p-4 bg-white border-bottom">
+                        <h5 class="fw-bold mb-0">Financial Statements</h5>
+                    </div>
+                    <div class="list-group list-group-flush">
+                        <a href="{{ url_for('main.trial_balance_report') }}" class="list-group-item list-group-item-action py-3 d-flex align-items-center">
+                            <div class="stat-icon sm me-3 bg-primary bg-opacity-10 text-primary" style="width: 40px; height: 40px; font-size: 1rem;">
+                                <i class="fas fa-balance-scale"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold">Trial Balance</h6>
+                                <small class="text-muted">Account level verification</small>
+                            </div>
+                            <i class="fas fa-chevron-right ms-auto opacity-25"></i>
+                        </a>
+                        <a href="{{ url_for('main.profit_loss_report') }}" class="list-group-item list-group-item-action py-3 d-flex align-items-center">
+                            <div class="stat-icon sm me-3 bg-success bg-opacity-10 text-success" style="width: 40px; height: 40px; font-size: 1rem;">
+                                <i class="fas fa-hand-holding-usd"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold">Profit & Loss</h6>
+                                <small class="text-muted">Income statement</small>
+                            </div>
+                            <i class="fas fa-chevron-right ms-auto opacity-25"></i>
+                        </a>
+                        <a href="{{ url_for('main.balance_sheet_report') }}" class="list-group-item list-group-item-action py-3 d-flex align-items-center">
+                            <div class="stat-icon sm me-3 bg-info bg-opacity-10 text-info" style="width: 40px; height: 40px; font-size: 1rem;">
+                                <i class="fas fa-landmark"></i>
+                            </div>
+                            <div>
+                                <h6 class="mb-0 fw-bold">Balance Sheet</h6>
+                                <small class="text-muted">Financial position</small>
+                            </div>
+                            <i class="fas fa-chevron-right ms-auto opacity-25"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card border-0 shadow-sm rounded-4 p-4 text-white" style="background: var(--accent-gradient);">
+                <h5 class="fw-bold mb-2">Need Help?</h5>
+                <p class="small opacity-75 mb-3">Accrual accounting follows double-entry principles. Every debit must have an equal credit.</p>
+                <a href="#" class="btn btn-sm btn-white text-warning fw-bold">View Guide</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

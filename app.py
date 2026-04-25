@@ -28,13 +28,16 @@ def setup_logging(data_dir):
 def create_app():
     # precise determination of data_dir path
     data_dir = os.environ.get('NEXUS_DATA_PATH')
-    if not data_dir:
-        if getattr(sys, 'frozen', False):
+    if not data_dir: # Corrected the variable name
+         data_dir = os.getenv('NEXUS_DATA_PATH', '.')
+    
+    if getattr(sys, 'frozen', False):
+        if not data_dir or data_dir == '.':
             base_path = os.path.dirname(sys.executable)
             data_dir = base_path
-        else:
-            # Fallback for dev mode
-            data_dir = os.path.dirname(os.path.abspath(__file__))
+    else:
+        # Resolve any relative paths to absolute
+        data_dir = os.path.abspath(data_dir)
             
     # Ensure data_dir exists before setting up logging
     os.makedirs(data_dir, exist_ok=True)
@@ -60,44 +63,8 @@ def create_app():
     app.config['DATABASE_PATH'] = db_path 
     app.config['SECRET_KEY'] = 'dev-key-nexus-river-view'
     
-    # Load Admin Config
-    external_config_path = os.path.join(data_dir, 'admin_config.json')
-    bundled_config_path = os.path.join(app.root_path, 'admin_config.json')
-    
-    config_loaded = False
-    if os.path.exists(external_config_path):
-        try:
-            import json
-            with open(external_config_path, 'r') as f:
-                config = json.load(f)
-                app.config['ADMIN_PASSWORD'] = config.get('ADMIN_PASSWORD', '1234')
-            config_loaded = True
-        except:
-             pass 
-    
-    # Auto-generate if missing in data_dir
-    if not config_loaded:
-        default_password = '1234'
-        if os.path.exists(bundled_config_path):
-             try:
-                import json
-                with open(bundled_config_path, 'r') as f:
-                    config = json.load(f)
-                    default_password = config.get('ADMIN_PASSWORD', '1234')
-             except:
-                  pass
-        
-        try:
-            import json
-            with open(external_config_path, 'w') as f:
-                json.dump({"ADMIN_PASSWORD": default_password}, f)
-            app.config['ADMIN_PASSWORD'] = default_password
-        except Exception as e:
-            logger.error(f"Failed to auto-create config: {e}")
-            app.config['ADMIN_PASSWORD'] = default_password 
-            
-    if 'ADMIN_PASSWORD' not in app.config:
-        app.config['ADMIN_PASSWORD'] = '1234'
+    # Load Admin Config from Environment
+    app.config['ADMIN_PASSWORD'] = os.environ.get('ADMIN_PASSWORD', '1234')
 
     # Upload Folder
     app.config['UPLOAD_FOLDER'] = os.path.join(data_dir, 'uploads')
@@ -127,18 +94,67 @@ def create_app():
                 db.create_all()
                 logger_to_use.info("Database tables verified/created.")
                 
-                # Check for default admin
-                from models import User
+                # Setup Initial Data
+                from models import User, Account
+                
+                # 1. Admin User
                 if not User.query.filter_by(username='admin').first():
                     admin = User(username='admin')
-                    # Get password from config
                     pwd = app_to_sync.config.get('ADMIN_PASSWORD', '1234')
                     admin.set_password(pwd)
                     db.session.add(admin)
                     db.session.commit()
                     logger_to_use.info("Default admin user created.")
+                
+                # 2. Chart of Accounts
+                logger_to_use.info("Verifying Chart of Accounts...")
+                initial_accounts = [
+                    # Assets
+                    {'code': '1000', 'name': 'Assets', 'type': 'Asset'},
+                    {'code': '1010', 'name': 'Cash in Hand', 'type': 'Asset', 'parent_code': '1000'},
+                    {'code': '1100', 'name': 'Accounts Receivable', 'type': 'Asset', 'parent_code': '1000'},
+                    {'code': '1200', 'name': 'Bank Accounts', 'type': 'Asset', 'parent_code': '1000'},
+                    # Liabilities
+                    {'code': '2000', 'name': 'Liabilities', 'type': 'Liability'},
+                    {'code': '2100', 'name': 'Accounts Payable', 'type': 'Liability', 'parent_code': '2000'},
+                    # Equity
+                    {'code': '3000', 'name': 'Equity', 'type': 'Equity'},
+                    {'code': '3100', 'name': 'Share Capital', 'type': 'Equity', 'parent_code': '3000'},
+                    {'code': '3200', 'name': 'Retained Earnings', 'type': 'Equity', 'parent_code': '3000'},
+                    # Revenue
+                    {'code': '4000', 'name': 'Revenue', 'type': 'Revenue'},
+                    {'code': '4100', 'name': 'Sales/Installments', 'type': 'Revenue', 'parent_code': '4000'},
+                    # Expenses
+                    {'code': '5000', 'name': 'Expenses', 'type': 'Expense'},
+                    {'code': '5100', 'name': 'Administrative Expenses', 'type': 'Expense', 'parent_code': '5000'},
+                    {'code': '5200', 'name': 'Operational Expenses', 'type': 'Expense', 'parent_code': '5000'},
+                    {'code': 'DEFAULT_EXP', 'name': 'Uncategorized Expense', 'type': 'Expense', 'parent_code': '5000'},
+                    {'code': 'DEFAULT_REV', 'name': 'Uncategorized Revenue', 'type': 'Revenue', 'parent_code': '4000'},
+                ]
+                
+                # Create missing accounts
+                seeded_any = False
+                for acc_data in initial_accounts:
+                    if not Account.query.filter_by(code=acc_data['code']).first():
+                        acc = Account(code=acc_data['code'], name=acc_data['name'], type=acc_data['type'])
+                        db.session.add(acc)
+                        seeded_any = True
+                
+                if seeded_any:
+                    db.session.commit()
+                    # Set parents
+                    for acc_data in initial_accounts:
+                        if 'parent_code' in acc_data:
+                            parent = Account.query.filter_by(code=acc_data['parent_code']).first()
+                            child = Account.query.filter_by(code=acc_data['code']).first()
+                            if parent and child and not child.parent_id:
+                                child.parent_id = parent.id
+                    db.session.commit()
+                    logger_to_use.info("Chart of Accounts verified/updated.")
+
             except Exception as e:
-                logger_to_use.error(f"Failed to initialize database tables or create admin: {e}")
+                logger_to_use.error(f"Initialization or Seeding failed: {e}")
+                db.session.rollback()
 
             if not os.path.exists(db_path_to_use) or os.path.getsize(db_path_to_use) == 0:
                 logger_to_use.info("Database missing. Attempting recovery from Google Sheets...")
@@ -162,20 +178,28 @@ def create_app():
                         sync_manager.sync_to_sheets()
                 except Exception as e:
                     logger_to_use.error(f"Sync verification skipped due to error: {e}")
+            
+            # --- Added Telegram Backup on Startup (Safe Direct Call) ---
+            try:
+                db_path = app_to_sync.config.get('DATABASE_PATH')
+                if db_path and os.path.exists(db_path):
+                    from telegram_utils import send_telegram_document
+                    from datetime import datetime
+                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    caption = f"DB Backup triggered by: Application Startup\nTime: {timestamp}"
+                    send_telegram_document(db_path, caption=caption)
+                
+                # --- NEW: Automated Local Backup Cleanup (30 Days) ---
+                from logic import cleanup_old_backups
+                cleanup_old_backups(days=30)
+                
+            except Exception as e:
+                logger_to_use.error(f"Startup tasks (backup/cleanup) failed: {e}")
 
     @app.context_processor
     def inject_company_settings():
-        company_name = "Company Name"
-        company_address = ""
-        settings_path = os.path.join(data_dir, 'company_settings.json')
-        if os.path.exists(settings_path):
-            try:
-                with open(settings_path, 'r') as f:
-                    settings_data = json.load(f)
-                    company_name = settings_data.get('company_name', company_name)
-                    company_address = settings_data.get('company_address', company_address)
-            except Exception:
-                pass
+        company_name = os.environ.get('COMPANY_NAME', 'Company Name')
+        company_address = os.environ.get('COMPANY_ADDRESS', '')
         return dict(global_company_name=company_name, global_company_address=company_address)
 
     import threading

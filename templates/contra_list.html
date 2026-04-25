@@ -26,6 +26,7 @@
                         <th>From</th>
                         <th>To</th>
                         <th>Bank Account</th>
+                        <th>Proof</th>
                         <th>Amount</th>
                         <th class="text-end pe-4">Actions</th>
                     </tr>
@@ -35,9 +36,6 @@
                     <tr>
                         <td class="ps-4 fw-bold text-dark">
                             {{ c.contra_no }}
-                            {% if c.attachments %}
-                            <i class="fas fa-paperclip ms-1 text-muted small" title="Has attachments"></i>
-                            {% endif %}
                         </td>
                         <td class="small text-muted">{{ c.date }}</td>
                         <td>
@@ -64,11 +62,27 @@
                                 -
                             {% endif %}
                         </td>
+                        <td>
+                            {% if c.attachments %}
+                            <div class="d-flex gap-1">
+                                {% for img in c.attachments.split(',') if img %}
+                                <a href="{{ url_for('main.uploaded_file', filename=img) }}" target="_blank">
+                                    <img src="{{ url_for('main.uploaded_file', filename=img) }}" class="rounded shadow-sm" style="height: 30px; width: 30px; object-fit: cover;">
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <span class="text-muted small">-</span>
+                            {% endif %}
+                        </td>
                         <td class="fw-bold text-dark">
                             {{ "{:,.2f}".format(c.amount) }}
                         </td>
                         <td class="text-end pe-4">
                             <div class="d-flex gap-2 justify-content-end">
+                                <a href="{{ url_for('main.print_contra_entry', id=c.id) }}" class="btn btn-sm btn-light border rounded-pill px-3 shadow-none">
+                                    <i class="fas fa-print text-success me-1"></i>Print
+                                </a>
                                 <a href="{{ url_for('main.edit_contra_entry', id=c.id) }}" class="btn btn-sm btn-light border rounded-pill px-3 shadow-none">
                                     <i class="fas fa-edit text-primary me-1"></i>Edit
                                 </a>

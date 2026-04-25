@@ -1,5 +1,5 @@
 from database import db
-from datetime import datetime
+from datetime import datetime, timezone
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -32,7 +32,7 @@ class Director(db.Model):
     total_paid = db.Column(db.Float, default=0.0)
     total_due = db.Column(db.Float, default=0.0)
     payment_history = db.Column(db.Text) # Date & Deposit text blob
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     @property
     def available_shares(self):
@@ -67,7 +67,7 @@ class Customer(db.Model):
     nid_no = db.Column(db.String(50))
     present_address = db.Column(db.String(255))
     permanent_address = db.Column(db.String(255))
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 Director.customers = db.relationship('Customer', backref='director', lazy=True, order_by=Customer.customer_id)
 
@@ -75,13 +75,15 @@ class Installment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False) # e.g. "Piling Installment"
     amount_per_share = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     
     customer_installments = db.relationship('CustomerInstallment', backref='installment', lazy=True, cascade="all, delete-orphan")
 
     @property
     def total_expected(self):
-        return sum(ci.total_amount for ci in self.customer_installments)
+        from models import Director
+        total_shares = sum(d.total_share for d in Director.query.all())
+        return total_shares * self.amount_per_share
 
     @property
     def total_collected(self):
@@ -89,7 +91,7 @@ class Installment(db.Model):
 
     @property
     def total_due(self):
-        return sum(ci.due_amount for ci in self.customer_installments)
+        return self.total_expected - self.total_collected
 
 class CustomerInstallment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -113,17 +115,17 @@ class Transaction(db.Model):
     
     customer_id = db.Column(db.Integer, db.ForeignKey('customer.id'), nullable=False)
     customer_installment_id = db.Column(db.Integer, db.ForeignKey('customer_installment.id'), nullable=True)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 class PettyCashCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class PartyCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
 
 class PettyCash(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -136,9 +138,10 @@ class PettyCash(db.Model):
     
     # Financial Integration
     voucher_id = db.Column(db.Integer, db.ForeignKey('voucher.id'), nullable=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     contra_entry_id = db.Column(db.Integer, db.ForeignKey('contra_entry.id'), nullable=True)
     
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 class Bank(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -156,7 +159,7 @@ class Bank(db.Model):
     account_type = db.Column(db.String(50)) # Savings, Current, etc.
     currency = db.Column(db.String(10))
     status = db.Column(db.String(20), default='Active') # Active/Inactive
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     
     transactions = db.relationship('BankTransaction', backref='bank', lazy=True, cascade="all, delete-orphan")
@@ -196,9 +199,10 @@ class BankTransaction(db.Model):
     # Financial Integration
     voucher_id = db.Column(db.Integer, db.ForeignKey('voucher.id'), nullable=True)
     contra_entry_id = db.Column(db.Integer, db.ForeignKey('contra_entry.id'), nullable=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     category = db.Column(db.String(100), nullable=True) # Added for categorizing bank movements
     
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
@@ -221,8 +225,8 @@ class Party(db.Model):
     category = db.Column(db.String(50), nullable=False) # Supplier, Contractor, Individual
     phone = db.Column(db.String(20))
     address = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
     
     ledger_entries = db.relationship('PartyLedger', backref='party', lazy=True, cascade="all, delete-orphan")
 
@@ -253,8 +257,8 @@ class PartyLedger(db.Model):
     # Financial Integration
     voucher_id = db.Column(db.Integer, db.ForeignKey('voucher.id'), nullable=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 class Voucher(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -278,9 +282,10 @@ class Voucher(db.Model):
     notes = db.Column(db.Text)
     attachment = db.Column(db.String(255)) # Filename
     is_payment = db.Column(db.Boolean, default=False) # True if paying previous dues (no new bill)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=True)
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     # Relationships for easier access
     party_obj = db.relationship('Party', backref='vouchers', lazy=True)
@@ -302,8 +307,8 @@ class ContraEntry(db.Model):
     description = db.Column(db.Text)
     cheque_no = db.Column(db.String(50))
     attachments = db.Column(db.Text) # Comma-separated filenames
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     # Financial Integration
     bank_obj = db.relationship('Bank', backref='contra_entries', lazy=True)
@@ -318,7 +323,7 @@ class Todo(db.Model):
     due_time = db.Column(db.String(10)) # Time for reminder
     is_completed = db.Column(db.Boolean, default=False)
     reminder_sent = db.Column(db.Boolean, default=False) # To prevent duplicate alerts
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     
     # Relationship to User
@@ -342,8 +347,8 @@ class Employee(db.Model):
     fl_total = db.Column(db.Integer, default=0)  # Festival Leave
     el_total = db.Column(db.Integer, default=0)  # Earned Leave
     
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
     # Relationships
     attendances = db.relationship('Attendance', backref='employee', lazy=True, cascade="all, delete-orphan")
@@ -359,8 +364,8 @@ class Attendance(db.Model):
     status = db.Column(db.String(20), nullable=False) # 'Present', 'Absent', 'Leave', 'Late'
     working_hours = db.Column(db.Float, default=0.0)
     notes = db.Column(db.String(255))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 class Leave(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -371,8 +376,8 @@ class Leave(db.Model):
     total_days = db.Column(db.Integer, nullable=False)
     status = db.Column(db.String(20), default='Approved') # 'Approved', 'Pending', 'Rejected'
     reason = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
 class Salary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -396,6 +401,46 @@ class Salary(db.Model):
     
     status = db.Column(db.String(20), default='Unpaid') # 'Unpaid', 'Paid'
     payment_date = db.Column(db.String(20))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))
 
+
+class AccountCategory(db.Model):
+    """Optional: To group accounts like 'Cash', 'Bank', 'Expense' for easier UI filtering"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    type = db.Column(db.String(20), nullable=False) # Asset, Liability, etc.
+
+class Account(db.Model):
+    __tablename__ = 'accounts'
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(20), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    type = db.Column(db.String(20), nullable=False) # Asset, Liability, Equity, Revenue, Expense
+    parent_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
+    description = db.Column(db.String(255))
+    
+    # Hierarchy
+    children = db.relationship('Account', backref=db.backref('parent', remote_side=[id]))
+    ledger_lines = db.relationship('JournalEntryLine', backref='account', lazy=True)
+
+class JournalEntry(db.Model):
+    __tablename__ = 'journal_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(20), nullable=False) # String for consistency with other models
+    reference = db.Column(db.String(100)) # e.g. "VOU-DV-101"
+    description = db.Column(db.Text)
+    type = db.Column(db.String(50), default='Manual') # Manual, Automated, Voucher
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    
+    lines = db.relationship('JournalEntryLine', backref='entry', lazy=True, cascade="all, delete-orphan")
+
+class JournalEntryLine(db.Model):
+    __tablename__ = 'journal_entry_lines'
+    id = db.Column(db.Integer, primary_key=True)
+    journal_entry_id = db.Column(db.Integer, db.ForeignKey('journal_entries.id'), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('accounts.id'), nullable=False)
+    debit = db.Column(db.Float, default=0.0)
+    credit = db.Column(db.Float, default=0.0)
+    narration = db.Column(db.String(255))

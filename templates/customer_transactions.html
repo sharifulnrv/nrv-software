@@ -233,7 +233,7 @@
                                             {% endif %}
                                             {% if tx.images %}
                                             <div class="mt-2">
-                                                {% for img in tx.images.split(',') %}
+                                                {% for img in tx.images.split(',') if img %}
                                                 <a href="{{ url_for('main.uploaded_file', filename=img) }}"
                                                     target="_blank" class="d-inline-block me-1">
                                                     <img src="{{ url_for('main.uploaded_file', filename=img) }}"
@@ -245,6 +245,9 @@
                                             {% endif %}
                                         </td>
                                         <td class="text-end pe-4">
+                                            <a href="{{ url_for('main.print_receipt', tx_id=tx.id) }}" target="_blank" class="text-success small btn btn-sm btn-light me-1" title="Print Money Receipt">
+                                                <i class="fas fa-print"></i>
+                                            </a>
                                             <button type="button" class="text-primary small btn btn-sm btn-light me-1" 
                                                 data-id="{{ tx.id }}"
                                                 data-date="{{ tx.date }}"

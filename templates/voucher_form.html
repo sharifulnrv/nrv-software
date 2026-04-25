@@ -281,8 +281,20 @@
         // Initial Calc & Visibility
         calculate();
         updatePaymentUI();
-        if (methodBank.checked) bankSelection.style.display = 'block';
-        else bankSelection.style.display = 'none';
+        
+        function toggleBank() {
+            if (methodBank.checked) {
+                bankSelection.style.display = 'block';
+            } else {
+                bankSelection.style.display = 'none';
+            }
+        }
+        
+        methodBank.addEventListener('change', toggleBank);
+        methodCash.addEventListener('change', toggleBank);
+        
+        // Initial visibility
+        toggleBank();
     });
 </script>
 {% endblock %}

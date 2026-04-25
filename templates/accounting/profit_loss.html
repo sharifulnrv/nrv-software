@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .report-container {
+        padding: 3rem 0;
+        animation: fadeIn 0.8s ease-out;
+    }
+    .report-card {
+        background: white;
+        border-radius: 2rem;
+        border: none;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+        overflow: hidden;
+    }
+    .report-header {
+        background: #f8fafc;
+        padding: 3.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        text-align: center;
+    }
+    .section-title {
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: #64748b;
+        margin-bottom: 1.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 2px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+    }
+    .line-item {
+        padding: 1.25rem 0.5rem;
+        border-bottom: 1px solid #f8fafc;
+        transition: background 0.2s;
+    }
+    .line-item:hover {
+        background: #f8fafc;
+    }
+    .amount-box {
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+    }
+    .summary-box {
+        background: #f8fafc;
+        border-radius: 1.5rem;
+        padding: 2rem;
+        margin-top: 2rem;
+    }
+    .net-profit-card {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        color: white;
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        margin-top: 2rem;
+        box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.3);
+    }
+    .net-loss-card {
+        background: linear-gradient(135deg, #991b1b 0%, #ef4444 100%);
+        color: white;
+        border-radius: 1.5rem;
+        padding: 2.5rem;
+        margin-top: 2rem;
+    }
+    @media print {
+        .d-print-none { display: none !important; }
+        .report-card { border: 1px solid #e2e8f0; box-shadow: none; }
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+<div class="container report-container">
+    <div class="d-flex justify-content-between align-items-center mb-5 d-print-none">
+        <div>
+            <h1 class="fw-bold h2 mb-1">Profit & Loss</h1>
+            <p class="text-muted mb-0">Income Statement summarizing operational efficiency and performance.</p>
+        </div>
+        <div class="d-flex gap-3">
+             <a href="{{ url_for('main.accounting_dashboard') }}" class="btn btn-light border rounded-pill px-4">
+                Dashboard
+            </a>
+            <button class="btn btn-primary rounded-pill px-4 shadow-sm" onclick="window.print()">
+                <i class="fas fa-print me-2"></i>Export PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="report-card">
+                <div class="report-header">
+                    <h1 class="fw-bold text-dark mb-2">{{ global_company_name or 'Nexus River View' }}</h1>
+                    <h5 class="text-secondary opacity-75 mb-4">INCOME STATEMENT</h5>
+                    <div class="d-flex justify-content-center">
+                        <span class="badge bg-light text-secondary border px-4 py-2 rounded-pill fw-bold">Period Ending {{ now_datetime }}</span>
+                    </div>
+                </div>
+
+                <div class="card-body p-5">
+                    <!-- REVENUE SECTION -->
+                    <div class="section-title">
+                        <span>Operational Revenue</span>
+                        <span class="text-primary">Credits</span>
+                    </div>
+                    {% for item in revenue %}
+                    <div class="line-item d-flex justify-content-between align-items-center">
+                        <div class="fw-medium text-slate-700">{{ item.name }}</div>
+                        <div class="amount-box text-dark">৳ {{ "{:,.2f}".format(item.balance) }}</div>
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex justify-content-between align-items-center p-3 mt-2 rounded-3 bg-light">
+                        <span class="fw-bold small text-muted">TOTAL REVENUE (A)</span>
+                        <span class="h5 fw-bold text-primary mb-0">৳ {{ "{:,.2f}".format(total_rev) }}</span>
+                    </div>
+
+                    <!-- EXPENSES SECTION -->
+                    <div class="section-title mt-5">
+                        <span>Operating Expenses</span>
+                        <span class="text-danger">Debits</span>
+                    </div>
+                    {% for item in expenses %}
+                    <div class="line-item d-flex justify-content-between align-items-center">
+                        <div class="fw-medium text-slate-700">{{ item.name }}</div>
+                        <div class="amount-box text-dark">৳ {{ "{:,.2f}".format(item.balance) }}</div>
+                    </div>
+                    {% endfor %}
+                    <div class="d-flex justify-content-between align-items-center p-3 mt-2 rounded-3 bg-light">
+                        <span class="fw-bold small text-muted">TOTAL EXPENSES (B)</span>
+                        <span class="h5 fw-bold text-danger mb-0">৳ {{ "{:,.2f}".format(total_exp) }}</span>
+                    </div>
+
+                    <!-- RESULT -->
+                    <div class="{% if net_profit >= 0 %}net-profit-card{% else %}net-loss-card{% endif %}">
+                        <div class="row align-items-center">
+                            <div class="col-8">
+                                <h3 class="fw-bold mb-1">NET PERFORMANCE</h3>
+                                <p class="mb-0 opacity-75">Bottom-line results after all deductions (A - B)</p>
+                            </div>
+                            <div class="col-4 text-end">
+                                <span class="h1 fw-bold mb-0">৳ {{ "{:,.2f}".format(net_profit) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <p class="text-center text-muted small mt-4 opacity-50 d-print-none">
+                <i class="fas fa-lock me-1"></i> Secure financial data. Internal use only.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
