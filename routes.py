@@ -28,6 +28,8 @@ def run_in_background(target, app, *args, **kwargs):
     thread.start()
 
 _global_sync_lock = threading.Lock()
+_last_sync_time = 0
+SYNC_THROTTLE_SECONDS = 300 # 5 minutes
 
 def get_director_initials(name):
     """Generates initials from director name, ignoring special characters."""
@@ -96,16 +98,35 @@ def background_sync_all(action_name="Data Update"):
     """
     app = current_app._get_current_object()
     
+    global _last_sync_time
+    
+    # --- Performance Optimization ---
+    # Check if sync is enabled globally via ENV
+    sync_enabled = os.environ.get('GOOGLE_SHEETS_SYNC_ENABLED', 'True').lower() == 'true'
+    if not sync_enabled:
+        return
+
+    # Throttling Logic: Only sync if enough time has passed, or if forced (though we use action_name to distinguish)
+    now = time.time()
+    is_manual = "Manual" in action_name or "Force" in action_name
+    if not is_manual and (now - _last_sync_time) < SYNC_THROTTLE_SECONDS:
+        # Don't log to debug to avoid spamming
+        return
+
     if not _global_sync_lock.acquire(blocking=False):
         from telegram_utils import log_debug
         log_debug(f"[{action_name}] Sync skipped: A sync is already in progress.")
         return
         
     def sync_task(app_obj):
+        global _last_sync_time
         try:
             from sync_manager import sync_manager
             from telegram_utils import log_debug
             log_debug(f"Starting Background Tasks due to: {action_name}")
+            
+            # Record start time for throttling
+            _last_sync_time = time.time()
             
             sync_manager.sync_to_sheets()
             
@@ -175,6 +196,14 @@ def backup_to_telegram(action_name="Database Update"):
     background_sync_all(action_name)
 
 main = Blueprint('main', __name__)
+
+@main.route('/force_sync')
+@login_required
+def force_sync():
+    """Manual trigger for Google Sheets sync."""
+    background_sync_all("Manual Cloud Sync")
+    flash("Cloud synchronization started in the background...", "info")
+    return redirect(request.referrer or url_for('main.index'))
 
 @main.route('/uploads/<filename>')
 def uploaded_file(filename):

@@ -167,17 +167,9 @@ def create_app():
                 except Exception as e:
                     logger_to_use.error(f"Recovery hang/error: {e}")
             else:
-                try:
-                    logger_to_use.info("Verifying sync status with Google Sheets (Background)...")
-                    status, details = sync_manager.check_for_mismatches()
-                    if status == "mismatch":
-                        app_to_sync.config['SYNC_MISMATCH'] = details
-                        logger_to_use.warning(f"Sync Mismatch Detected: {details}")
-                    elif status == "empty_sheets":
-                        logger_to_use.info("Google Sheets is empty. Initializing with local data...")
-                        sync_manager.sync_to_sheets()
-                except Exception as e:
-                    logger_to_use.error(f"Sync verification skipped due to error: {e}")
+                logger_to_use.info("Database found. Skipping heavy startup sync for performance.")
+                # We skip check_for_mismatches and sync_to_sheets here.
+                # Background sync will happen normally after first user action if enabled.
             
             # --- Added Telegram Backup on Startup (Safe Direct Call) ---
             try:
