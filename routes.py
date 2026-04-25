@@ -101,9 +101,10 @@ def background_sync_all(action_name="Data Update"):
     global _last_sync_time
     
     # --- Performance Optimization ---
-    # Check if sync is enabled globally via ENV
-    sync_enabled = os.environ.get('GOOGLE_SHEETS_SYNC_ENABLED', 'True').lower() == 'true'
-    if not sync_enabled:
+    # Check if sync is enabled globally via DB
+    from logic import get_system_setting
+    sync_enabled = get_system_setting('CLOUD_SYNC_ENABLED', 'True') == 'True'
+    if not sync_enabled and "Force" not in action_name:
         return
 
     # Throttling Logic: Only sync if enough time has passed, or if forced (though we use action_name to distinguish)
@@ -128,28 +129,31 @@ def background_sync_all(action_name="Data Update"):
             # Record start time for throttling
             _last_sync_time = time.time()
             
+            # 1. Google Sheets Sync
             sync_manager.sync_to_sheets()
             
-            # 2. Master Excel Sync (Disabled/Moved elsewhere if needed to save time, or we can leave it)
+            # 2. Master Excel Sync (Local)
             try:
+                from logic import sync_to_excel
                 sync_to_excel()
             except Exception as e:
                 log_debug(f"Background Excel sync failed: {e}")
 
-            # 3. DB Backup with Cleanup
-            try:
-                from logic import create_db_backup
-                create_db_backup()
-                
-                # Also send to Telegram (existing logic)
-                db_path = app_obj.config.get('DATABASE_PATH')
-                if db_path and os.path.exists(db_path):
-                    from telegram_utils import send_telegram_document
-                    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    caption = f"DB Backup triggered by: {action_name}\nTime: {timestamp}"
-                    send_telegram_document(db_path, caption=caption)
-            except Exception as e:
-                log_debug(f"Background DB backup failed: {e}")
+            # 3. DB Backup to Telegram (Conditional)
+            from logic import get_system_setting
+            if get_system_setting('TELEGRAM_BACKUP_ENABLED', 'True') == 'True':
+                try:
+                    from logic import create_db_backup
+                    create_db_backup()
+                    
+                    db_path = app_obj.config.get('DATABASE_PATH')
+                    if db_path and os.path.exists(db_path):
+                        from telegram_utils import send_telegram_document
+                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        caption = f"DB Backup triggered by: {action_name}\nTime: {timestamp}"
+                        send_telegram_document(db_path, caption=caption)
+                except Exception as e:
+                    log_debug(f"Background Telegram backup failed: {e}")
 
             # 4. Task Reminders
             try:
@@ -195,15 +199,28 @@ def trigger_excel_sync():
 def backup_to_telegram(action_name="Database Update"):
     background_sync_all(action_name)
 
+# --- System Settings Helpers moved to logic.py ---
+from logic import get_system_setting, set_system_setting
+
 main = Blueprint('main', __name__)
 
 @main.route('/force_sync')
 @login_required
 def force_sync():
     """Manual trigger for Google Sheets sync."""
-    background_sync_all("Manual Cloud Sync")
+    background_sync_all("Manual Cloud Sync (Forced)")
     flash("Cloud synchronization started in the background...", "info")
     return redirect(request.referrer or url_for('main.index'))
+
+@main.route('/toggle_setting/<key>')
+@login_required
+def toggle_setting(key):
+    """Toggles a boolean system setting."""
+    current_val = get_system_setting(key, 'True')
+    new_val = 'False' if current_val == 'True' else 'True'
+    set_system_setting(key, new_val)
+    flash(f"Setting '{key}' updated to {new_val}", "success")
+    return redirect(request.referrer or url_for('main.settings'))
 
 @main.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -4108,23 +4125,33 @@ def export_all_bank_data():
 
 # --- Settings & Restore ---
 @main.route('/settings')
+@login_required
 def settings():
+    from logic import get_system_setting
     # Load company settings
-    company_name = "Company Name"
-    company_address = ""
-    data_dir = current_app.config.get('DATA_FOLDER', '.')
     company_name = os.environ.get('COMPANY_NAME', 'NEXUS RIVER VIEW')
     company_address = os.environ.get('COMPANY_ADDRESS', '')
-
-    # List available backups
+    
+    data_dir = current_app.config.get('DATA_FOLDER', '.')
+    backup_dir = os.path.join(data_dir, 'backups')
+    
+    # List available backups (.db and .xlsx)
     backups = []
-    backup_dir = os.path.join(current_app.root_path, 'backups')
     if os.path.exists(backup_dir):
         files = sorted(os.listdir(backup_dir), reverse=True)
         for f in files:
-            if f.endswith('.xlsx'):
+            if f.endswith('.db') or f.endswith('.xlsx'):
                 backups.append(f)
-    return render_template('settings.html', backups=backups, company_name=company_name, company_address=company_address)
+    
+    cloud_sync_enabled = get_system_setting('CLOUD_SYNC_ENABLED', 'True')
+    telegram_backup_enabled = get_system_setting('TELEGRAM_BACKUP_ENABLED', 'True')
+    
+    return render_template('settings.html', 
+                         backups=backups, 
+                         company_name=company_name, 
+                         company_address=company_address,
+                         cloud_sync_enabled=cloud_sync_enabled,
+                         telegram_backup_enabled=telegram_backup_enabled)
 
 @main.route('/settings/company', methods=['POST'])
 def save_company_settings():

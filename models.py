@@ -444,3 +444,10 @@ class JournalEntryLine(db.Model):
     debit = db.Column(db.Float, default=0.0)
     credit = db.Column(db.Float, default=0.0)
     narration = db.Column(db.String(255))
+
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(255), nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc))

@@ -1133,3 +1133,29 @@ def get_daily_cash_report(target_date):
         'prev_bank': prev_bank,
         'today_bank': today_bank
     }
+# --- System Settings Helpers ---
+def get_system_setting(key, default='True'):
+    """Helper to get a persistent system setting from the DB."""
+    try:
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key=key).first()
+        if setting:
+            return setting.value
+        return default
+    except Exception:
+        return default
+
+def set_system_setting(key, value):
+    """Helper to update a persistent system setting."""
+    try:
+        from models import SystemSetting
+        setting = SystemSetting.query.filter_by(key=key).first()
+        if not setting:
+            setting = SystemSetting(key=key)
+            db.session.add(setting)
+        setting.value = str(value)
+        db.session.commit()
+        return True
+    except Exception as e:
+        log_debug(f"Failed to set context setting {key}: {e}")
+        return False

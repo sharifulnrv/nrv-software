@@ -124,9 +124,10 @@ class SyncManager:
     def sync_to_sheets(self):
         """Exports local database to Google Sheets (One-way: DB -> Sheets)."""
         # --- Performance Optimization: Check if sync is enabled ---
-        sync_enabled = os.environ.get('GOOGLE_SHEETS_SYNC_ENABLED', 'True').lower() == 'true'
+        from logic import get_system_setting
+        sync_enabled = get_system_setting('CLOUD_SYNC_ENABLED', 'True') == 'True'
         if not sync_enabled:
-            return False, "Sync disabled by configuration"
+            return False, "Sync disabled by user configuration"
 
         if not self.sync_lock_acquire():
             log_debug("Sync to sheets skipped: Another sync is in progress.")
