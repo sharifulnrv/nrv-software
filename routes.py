@@ -113,7 +113,9 @@ def background_sync_all(action_name="Data Update"):
         return
         
     def sync_task(app_obj):
-            global _last_sync_time
+        global _last_sync_time
+        try:
+            from sync_manager import sync_manager
             from logic import get_system_setting
             from telegram_utils import log_debug
             
